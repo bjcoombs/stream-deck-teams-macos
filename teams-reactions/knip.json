@@ -1,0 +1,7 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"entry": ["src/plugin.ts", "tests/*.test.mjs"],
+	"project": ["src/**/*.ts", "tests/**/*.mjs"],
+	"ignoreExportsUsedInFile": true,
+	"ignoreDependencies": ["@stryker-mutator/command-runner"]
+}

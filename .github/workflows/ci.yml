@@ -38,6 +38,41 @@ jobs:
         run: npm test
       - name: Pack
         run: npm run pack
+      - name: Validate plugin bundle
+        run: npm run validate
+
+  mutation:
+    name: Mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: teams-reactions
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: teams-reactions/package-lock.json
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      # Fails when the mutation score drops below the break threshold in stryker.config.mjs.
+      - name: Mutation testing
+        run: npm run test:mutation
+
+  native-complexity:
+    name: Native complexity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check Objective-C complexity ceilings
+        run: ./scripts/check-native-complexity.sh
 
   codeql:
     name: CodeQL (TypeScript)

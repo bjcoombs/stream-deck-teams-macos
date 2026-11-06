@@ -38,7 +38,9 @@ See [Development](docs/development.md) for build requirements and validation.
 For updates, install a package with a higher version. **Existing keys update
 without remapping.** A same-version installer can be rejected as already installed.
 See [Installation and troubleshooting](docs/troubleshooting.md) for reloads,
-permission issues, and update verification.
+permission issues, and update verification. Domain terms are defined in
+[CONTEXT.md](CONTEXT.md); contributor and agent rules are in [AGENTS.md](AGENTS.md);
+lessons learned are in [docs/retros](docs/retros/README.md).
 
 ## Using the controls
 

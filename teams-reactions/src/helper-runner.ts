@@ -313,7 +313,7 @@ export function startReactionBurst(reaction: string, options: BurstRunnerOptions
 			const spawnCode = typeof error.code === "string" && /^E[A-Z0-9]+$/.test(error.code) ? error.code : null;
 			reject(new HelperExecutionError(null, false, safeDiagnostic(null, spawnCode, false, error.message)));
 		});
-		child.on("close", (code, signal) => {
+		child.on("close", (code) => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timer);

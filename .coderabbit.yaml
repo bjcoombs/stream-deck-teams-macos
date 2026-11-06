@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-GB
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    # Stacked pull requests target feature branches, not only main.
+    base_branches:
+      - ".*"
+  path_instructions:
+    - path: "TeamsReactionPOC.m"
+      instructions: >-
+        Native Accessibility helper. Flag any change that could press a control other than the
+        one requested, select End meeting, weaken ambiguity refusal in BestUniqueNode, log or print
+        Teams content (chat, names, titles), or remove a bound on traversal, burst duration or count.
+    - path: "teams-reactions/src/**"
+      instructions: >-
+        Stream Deck plugin. Destructive actions (Leave) must stay behind the hold gate. Only
+        helper-runner.ts may launch processes. Helper diagnostics must stay suppressed in logs.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Actions must be pinned to full commit SHAs, permissions least-privilege, no secrets,
+        npm installs with --ignore-scripts.

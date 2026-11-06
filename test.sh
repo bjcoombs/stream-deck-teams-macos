@@ -12,6 +12,7 @@ xcrun clang \
   -O \
   -Wall \
   -Wextra \
+  -Werror \
   -Wno-unused-function \
   -fobjc-arc \
   -fmodules-cache-path="$module_cache" \
