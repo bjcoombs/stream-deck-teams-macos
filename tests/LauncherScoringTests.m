@@ -33,9 +33,67 @@ static void Expect(BOOL condition, NSString *message, int *failures) {
     *failures += 1;
 }
 
+static void ExpectState(NSArray<AXNode *> *elements, NSString *key, id expected, NSString *message, int *failures) {
+    NSDictionary *state = StateSnapshot(@{@"applicationCount": @1, @"elements": elements});
+    Expect([state[key] isEqual:expected], message, failures);
+}
+
+static AXNode *SelectedOption(NSString *title, NSString *identifier) {
+    AXNode *option = Button(title, identifier, 12);
+    option.selected = YES;
+    return option;
+}
+
+static AXNode *HandLauncher(NSString *customDescription) {
+    AXNode *launcher = Button(@"React", @"reaction-menu-button", 8);
+    launcher.customDescription = customDescription;
+    return launcher;
+}
+
+// Pins StateSnapshot behaviour, including its quirks, before it is split.
+static void TestStateSnapshotCharacterization(int *failures) {
+    AXNode *mic = Button(@"Unmute mic", @"microphone-button", 10);
+    AXNode *camera = Button(@"Turn camera on", @"camera-button", 10);
+    AXNode *effects = Button(@"Video effects and settings", @"video-effects-button", 10);
+    AXNode *blur = Button(@"Blur", @"background-effect-blur", 12);
+    AXNode *selectedBlur = SelectedOption(@"Blur", @"background-effect-blur");
+    AXNode *selectedNone = SelectedOption(@"None", @"background-effect-none");
+    NSString *raisedDescription = @"React or raise your hand. Your hand is raised. Has context menu";
+
+    ExpectState(@[mic, selectedNone], @"backgroundBlur", @"off", @"a selected no-effect option must report blur off", failures);
+    ExpectState(@[mic, effects], @"backgroundBlur", @"unknown", @"an effects launcher with nothing selected must report blur unknown", failures);
+    ExpectState(@[effects], @"meetingActive", @NO, @"an effects launcher alone must not mark a meeting active", failures);
+    ExpectState(@[effects], @"backgroundBlur", @"unavailable", @"an effects launcher alone must report blur unavailable", failures);
+    ExpectState(@[blur], @"backgroundBlur", @"unavailable", @"an unselected blur option without a meeting must report blur unavailable", failures);
+    ExpectState(@[selectedBlur], @"meetingActive", @NO, @"a blur option alone must not mark a meeting active", failures);
+    ExpectState(@[selectedBlur], @"backgroundBlur", @"on", @"a selected blur option must report blur on even with no meeting", failures);
+    ExpectState(@[mic, selectedBlur, selectedNone], @"backgroundBlur", @"off", @"no-effect must win when blur and no-effect are both selected", failures);
+    AXNode *secondSelectedBlur = SelectedOption(@"Blur", @"background-effect-blur");
+    ExpectState(@[mic, effects, selectedBlur, secondSelectedBlur], @"backgroundBlur", @"unknown", @"two selected blur options must report blur unknown", failures);
+    ExpectState(@[mic, selectedBlur, secondSelectedBlur], @"backgroundBlur", @"unavailable", @"two selected blur options without a launcher or no-effect option must report blur unavailable", failures);
+
+    AXNode *hand = Button(@"Lower your hand", @"hand-button", 10);
+    AXNode *secondHand = Button(@"Lower your hand", @"hand-button", 10);
+    ExpectState(@[hand, secondHand, HandLauncher(raisedDescription)], @"hand", @"unknown", @"an ambiguous hand control must not fall back to the launcher description", failures);
+    NSArray *twoLaunchers = @[HandLauncher(raisedDescription), HandLauncher(raisedDescription)];
+    ExpectState(twoLaunchers, @"meetingActive", @YES, @"an ambiguous React launcher must still mark a meeting active", failures);
+    ExpectState(twoLaunchers, @"hand", @"unavailable", @"an ambiguous React launcher must not supply hand state", failures);
+
+    AXNode *secondCamera = Button(@"Turn camera on", @"camera-button", 10);
+    ExpectState(@[mic, camera, secondCamera], @"camera", @"unknown", @"an ambiguous camera control must report camera unknown", failures);
+    ExpectState(@[camera], @"microphone", @"unavailable", @"a camera without a microphone must report microphone unavailable", failures);
+    ExpectState(@[camera], @"camera", @"off", @"a camera alone must mark the meeting active and report its state", failures);
+
+    Expect([AXErrorDescription(kAXErrorSuccess) isEqualToString:@"success"], @"AX success must keep its description", failures);
+    Expect([AXErrorDescription(kAXErrorAPIDisabled) isEqualToString:@"Accessibility API disabled or permission missing"], @"AX API disabled must keep its description", failures);
+    Expect([AXErrorDescription((AXError)-1) isEqualToString:@"AX error -1"], @"unknown AX errors must fall back to the numeric description", failures);
+}
+
 int main(void) {
     @autoreleasepool {
         int failures = 0;
+
+        TestStateSnapshotCharacterization(&failures);
 
         __block NSInteger reactionPresses = 0;
         __block NSInteger reacquisitions = 0;
