@@ -10,7 +10,7 @@ const repoRoot = path.join(pluginRoot, "..");
 const LINE_CEILINGS = {
 	"TeamsReactionPOC.m": 1700,
 	"teams-reactions/src/helper-runner.ts": 700,
-	"teams-reactions/src/actions/call-controls.ts": 300,
+	"teams-reactions/src/actions/call-controls.ts": 245,
 };
 const DEFAULT_SOURCE_CEILING = 300;
 
@@ -48,8 +48,11 @@ test("actions reach the helper only through teams-services.ts", async () => {
 });
 
 test("Leave Call is guarded by the hold gate", async () => {
+	const controller = await fs.readFile(path.join(pluginRoot, "src", "leave-controller.ts"), "utf8");
+	assert.match(controller, /\.press\(/, "leave-controller.ts must arm the hold gate on key-down");
+	assert.doesNotMatch(controller, /@elgato\/streamdeck/, "leave-controller.ts must stay free of the Stream Deck SDK so tests can load it");
 	const text = await fs.readFile(path.join(pluginRoot, "src", "actions", "call-controls.ts"), "utf8");
 	const leave = text.slice(text.indexOf("export class LeaveAction"));
-	assert.match(leave, /leaveHold\.press\(/, "LeaveAction must arm the hold gate on key-down");
-	assert.doesNotMatch(leave.slice(0, leave.indexOf("onKeyUp")), /commandCoordinator\.execute\("leave"\)/, "onKeyDown must not run leave directly");
+	assert.match(leave, /leaveController\.keyDown\(/, "LeaveAction must delegate key-down to the Leave controller");
+	assert.doesNotMatch(leave.slice(0, leave.indexOf("onKeyUp")), /execute\("leave"\)/, "onKeyDown must not run leave directly");
 });
