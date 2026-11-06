@@ -1,7 +1,8 @@
 /** Mutation testing for the modules the unit tests load directly. */
 export default {
 	testRunner: "command",
-	commandRunner: { command: "node --test tests/*.test.mjs" },
+	// The architecture test reads files outside the sandbox, so it is excluded here.
+	commandRunner: { command: "node --test tests/helper-runner.test.mjs tests/persistent-controls.test.mjs tests/hold-gate.test.mjs tests/manifest.test.mjs" },
 	mutate: ["src/helper-runner.ts", "src/hold-gate.ts"],
 	coverageAnalysis: "off",
 	reporters: ["clear-text", "progress", "json"],

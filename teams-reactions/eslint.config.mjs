@@ -17,8 +17,14 @@ export default tseslint.config(
 		},
 	},
 	{
+		// Baseline for existing protocol code: PersistentControlClient.receive is at
+		// complexity 23 and depth 5. These ceilings may only move down.
+		files: ["src/helper-runner.ts"],
+		rules: { complexity: ["error", 23], "max-depth": ["error", 5] },
+	},
+	{
 		files: ["tests/**/*.mjs", "*.mjs"],
-		languageOptions: { globals: { process: "readonly", console: "readonly", setTimeout: "readonly", clearTimeout: "readonly", Buffer: "readonly", URL: "readonly" } },
+		languageOptions: { globals: { process: "readonly", console: "readonly", setTimeout: "readonly", clearTimeout: "readonly", Buffer: "readonly", URL: "readonly", queueMicrotask: "readonly", setImmediate: "readonly" } },
 		rules: { "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }] },
 	},
 );
