@@ -22,7 +22,11 @@ Stream Deck keeps the plugin process from the last install running. Copying a ne
 
 Bump the manifest version before packaging an update. Stream Deck can reject an installer with the same version as already installed, leaving the old files in place. Restarting alone only helps if the installed files have actually been replaced. Verify the installed manifest version and compare both installed `bin/plugin.js` and `bin/teams-reaction` with the rebuilt files before treating an update as loaded.
 
-After a reload, `~/Library/Logs/ElgatoStreamDeck/StreamDeck.log` shows a new `Plugin connected` line for `com.laurens-bolle.teams-reactions`.
+After a reload, `~/Library/Logs/ElgatoStreamDeck/StreamDeck.log` shows a new `Plugin connected` line for `com.laurens-bolle.teams-reactions`. To read the plugin's recent log lines:
+
+```sh
+rg 'teams-reactions' ~/Library/Logs/ElgatoStreamDeck/StreamDeck.log | tail -50
+```
 
 The Stream Deck packer stores every file in the archive without an execute bit, so the installed `bin/teams-reaction` helper arrives as a plain 0644 file. The plugin restores the execute bit itself before each launch, so no manual `chmod` is needed after installation.
 

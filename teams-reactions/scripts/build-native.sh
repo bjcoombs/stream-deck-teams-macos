@@ -15,6 +15,7 @@ xcrun clang \
   -O \
   -Wall \
   -Wextra \
+  -Werror \
   -fobjc-arc \
   -fmodules-cache-path="$module_cache" \
   -framework Foundation \
