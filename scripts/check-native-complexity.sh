@@ -4,7 +4,7 @@
 set -euo pipefail
 
 LIZARD_SPEC="lizard==1.23.0"
-HELPER_CEILING=15   # issue #7 target; worst today is MarkMeetingReactionPicker and StateControlNodes at 11
+HELPER_CEILING=15   # TeamsReactionPOC.m, lowered from 30 by issue #7
 TESTS_CEILING=35    # main in tests/LauncherScoringTests.m
 
 root=$(cd "$(dirname "$0")/.." && pwd)
