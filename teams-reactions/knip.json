@@ -1,0 +1,6 @@
+{
+	"$schema": "https://unpkg.com/knip@5/schema.json",
+	"entry": ["src/plugin.ts", "tests/*.test.mjs"],
+	"project": ["src/**/*.ts", "tests/**/*.mjs"],
+	"ignoreDependencies": ["tslib", "@tsconfig/node20", "@elgato/cli"]
+}

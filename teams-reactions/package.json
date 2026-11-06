@@ -5,7 +5,7 @@
         "build:native": "./scripts/build-native.sh",
         "build:node": "tsc --outDir .build-ts --sourceMap false && rollup -c",
         "typecheck": "tsc --noEmit",
-        "test": "npm run test:native && npm run lint && npm run test:unit && npm run typecheck",
+        "test": "npm run test:native && npm run lint && npm run deadcode && npm run test:unit && npm run typecheck",
         "test:native": "../test.sh",
         "test:unit": "node --test --experimental-test-coverage --test-coverage-include='src/**' --test-coverage-lines=80 --test-coverage-branches=70 --test-coverage-functions=80 tests/*.test.mjs",
         "validate": "streamdeck validate com.laurens-bolle.teams-reactions.sdPlugin --no-update-check",
@@ -13,7 +13,8 @@
         "prewatch": "npm run build:native",
         "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.laurens-bolle.teams-reactions\"",
         "lint": "eslint .",
-        "test:mutation": "stryker run"
+        "test:mutation": "stryker run",
+        "deadcode": "knip"
     },
     "type": "module",
     "devDependencies": {
@@ -26,6 +27,7 @@
         "@tsconfig/node20": "^20.1.2",
         "@types/node": "~24.1.0",
         "eslint": "^9.39.5",
+        "knip": "^5.88.1",
         "rollup": "^4.0.2",
         "tslib": "^2.6.2",
         "typescript": "^5.2.2",

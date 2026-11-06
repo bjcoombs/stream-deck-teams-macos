@@ -33,10 +33,13 @@ Run from `teams-reactions/` unless noted. CI runs the same sequence.
 | Build and package `release/com.laurens-bolle.teams-reactions.streamDeckPlugin` | `npm run pack` |
 | Validate the plugin bundle | `npm run validate` |
 | Build the standalone helper (repository root) | `./build.sh` |
+| Objective-C complexity ceilings (repository root, needs `pipx`) | `./scripts/check-native-complexity.sh` |
+| Dead code and unused dependencies | `npm run deadcode` |
 
 `npm test` must pass before a change is pushed. Never weaken a gate to make it
 pass: no new lint suppressions, no lowered coverage threshold, no raised size
-ceiling in `tests/architecture.test.mjs` without a reason in the commit message.
+ceiling in `tests/architecture.test.mjs`, `eslint.config.mjs` or
+`scripts/check-native-complexity.sh` without a reason in the commit message.
 
 ## Layout
 
