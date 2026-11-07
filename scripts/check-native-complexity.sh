@@ -4,7 +4,7 @@
 set -euo pipefail
 
 LIZARD_SPEC="lizard==1.23.0"
-HELPER_CEILING=30   # StateSnapshot in TeamsReactionPOC.m; issue #7 lowers it to 15
+HELPER_CEILING=15   # TeamsReactionPOC.m, lowered from 30 by issue #7
 TESTS_CEILING=35    # main in tests/LauncherScoringTests.m
 
 root=$(cd "$(dirname "$0")/.." && pwd)

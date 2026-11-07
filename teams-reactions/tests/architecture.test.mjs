@@ -8,7 +8,7 @@ const repoRoot = path.join(pluginRoot, "..");
 
 // Line ceilings ratchet down only. Raising one needs a reason in the commit message.
 const LINE_CEILINGS = {
-	"TeamsReactionPOC.m": 1700,
+	"TeamsReactionPOC.m": 1760,
 	"teams-reactions/src/helper-runner.ts": 700,
 	"teams-reactions/src/actions/call-controls.ts": 245,
 };

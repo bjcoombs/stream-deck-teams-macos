@@ -586,25 +586,30 @@ static AXError PressNode(AXNode *node) {
 }
 
 static NSString *AXErrorDescription(AXError error) {
-    switch (error) {
-        case kAXErrorSuccess: return @"success";
-        case kAXErrorFailure: return @"generic failure";
-        case kAXErrorIllegalArgument: return @"illegal argument";
-        case kAXErrorInvalidUIElement: return @"the UI element disappeared";
-        case kAXErrorInvalidUIElementObserver: return @"invalid observer";
-        case kAXErrorCannotComplete: return @"Teams did not complete the action";
-        case kAXErrorAttributeUnsupported: return @"attribute unsupported";
-        case kAXErrorActionUnsupported: return @"the element does not support Press or ShowMenu";
-        case kAXErrorNotificationUnsupported: return @"notification unsupported";
-        case kAXErrorNotImplemented: return @"not implemented";
-        case kAXErrorNotificationAlreadyRegistered: return @"notification already registered";
-        case kAXErrorNotificationNotRegistered: return @"notification not registered";
-        case kAXErrorAPIDisabled: return @"Accessibility API disabled or permission missing";
-        case kAXErrorNoValue: return @"no value";
-        case kAXErrorParameterizedAttributeUnsupported: return @"parameterized attribute unsupported";
-        case kAXErrorNotEnoughPrecision: return @"not enough precision";
-        default: return [NSString stringWithFormat:@"AX error %d", error];
-    }
+    static NSDictionary<NSNumber *, NSString *> *descriptions;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        descriptions = @{
+            @(kAXErrorSuccess): @"success",
+            @(kAXErrorFailure): @"generic failure",
+            @(kAXErrorIllegalArgument): @"illegal argument",
+            @(kAXErrorInvalidUIElement): @"the UI element disappeared",
+            @(kAXErrorInvalidUIElementObserver): @"invalid observer",
+            @(kAXErrorCannotComplete): @"Teams did not complete the action",
+            @(kAXErrorAttributeUnsupported): @"attribute unsupported",
+            @(kAXErrorActionUnsupported): @"the element does not support Press or ShowMenu",
+            @(kAXErrorNotificationUnsupported): @"notification unsupported",
+            @(kAXErrorNotImplemented): @"not implemented",
+            @(kAXErrorNotificationAlreadyRegistered): @"notification already registered",
+            @(kAXErrorNotificationNotRegistered): @"notification not registered",
+            @(kAXErrorAPIDisabled): @"Accessibility API disabled or permission missing",
+            @(kAXErrorNoValue): @"no value",
+            @(kAXErrorParameterizedAttributeUnsupported): @"parameterized attribute unsupported",
+            @(kAXErrorNotEnoughPrecision): @"not enough precision",
+        };
+    });
+    NSString *description = descriptions[@(error)];
+    return description ?: [NSString stringWithFormat:@"AX error %d", error];
 }
 
 static BOOL RequireAccessibilityPermission(void) {
@@ -640,32 +645,95 @@ static NSString *HandStateFromLauncher(AXNode *launcher) {
     return @"unavailable";
 }
 
-static NSDictionary *StateSnapshot(NSDictionary *scan) {
-    NSArray<AXNode *> *elements = scan[@"elements"];
-    BOOL micAmbiguous = NO, cameraAmbiguous = NO, handAmbiguous = NO;
-    BOOL leaveAmbiguous = NO, launcherAmbiguous = NO, effectsAmbiguous = NO;
-    AXNode *microphone = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return MicrophoneScore(node); }, &micAmbiguous);
-    AXNode *camera = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return CameraScore(node); }, &cameraAmbiguous);
-    AXNode *hand = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return HandScore(node); }, &handAmbiguous);
-    AXNode *leave = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return LeaveScore(node); }, &leaveAmbiguous);
-    AXNode *launcher = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return LauncherScore(node); }, &launcherAmbiguous);
-    AXNode *effects = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return EffectsLauncherScore(node); }, &effectsAmbiguous);
-    BOOL meetingActive = microphone || camera || hand || leave || launcher
-        || micAmbiguous || cameraAmbiguous || handAmbiguous || leaveAmbiguous || launcherAmbiguous;
-    NSString *microphoneState = !meetingActive ? @"unavailable" : (micAmbiguous ? @"unknown" : (microphone ? MicrophoneStateForNode(microphone) : @"unavailable"));
-    NSString *cameraState = !meetingActive ? @"unavailable" : (cameraAmbiguous ? @"unknown" : (camera ? CameraStateForNode(camera) : @"unavailable"));
-    NSString *handState = !meetingActive ? @"unavailable" : (handAmbiguous ? @"unknown" : (hand ? HandStateForNode(hand) : @"unavailable"));
+static NSString *ControlFamilyState(BOOL meetingActive,
+                                    AXNode *node,
+                                    BOOL ambiguous,
+                                    NSString *(*stateForNode)(AXNode *)) {
+    if (!meetingActive) return @"unavailable";
+    if (ambiguous) return @"unknown";
+    return node ? stateForNode(node) : @"unavailable";
+}
 
-    if ([handState isEqualToString:@"unavailable"] && !launcherAmbiguous) handState = HandStateFromLauncher(launcher);
+// An ambiguous hand control reports unknown and never falls back to the launcher.
+// The launcherAmbiguous check is currently redundant, because BestUniqueNode returns
+// nil when it reports ambiguity. It states the rule explicitly.
+static NSString *HandSnapshotState(BOOL meetingActive,
+                                   AXNode *hand,
+                                   BOOL handAmbiguous,
+                                   AXNode *launcher,
+                                   BOOL launcherAmbiguous) {
+    NSString *handState = ControlFamilyState(meetingActive, hand, handAmbiguous, HandStateForNode);
+    BOOL unavailable = [handState isEqualToString:@"unavailable"];
+    if (unavailable && !launcherAmbiguous) return HandStateFromLauncher(launcher);
+    return handState;
+}
 
-    BOOL blurAmbiguous = NO, noneAmbiguous = NO;
-    AXNode *blur = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return BlurOptionScore(node); }, &blurAmbiguous);
-    AXNode *none = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return NoEffectOptionScore(node); }, &noneAmbiguous);
+// Order matters: a selected blur reports on even with no meeting, and a selected
+// no-effect option overrides it.
+static NSString *BlurSnapshotState(NSArray<AXNode *> *elements,
+                                   BOOL meetingActive,
+                                   AXNode *effects,
+                                   BOOL effectsAmbiguous) {
+    BOOL blurAmbiguous = NO;
+    BOOL noneAmbiguous = NO;
+    AXNode *blur = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return BlurOptionScore(node);
+    }, &blurAmbiguous);
+    AXNode *none = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return NoEffectOptionScore(node);
+    }, &noneAmbiguous);
     NSString *blurState = @"unavailable";
     if (meetingActive && (effects || blur || none || effectsAmbiguous)) blurState = @"unknown";
     if (!blurAmbiguous && blur.selected) blurState = @"on";
     if (!noneAmbiguous && none.selected) blurState = @"off";
-    return @{@"meetingActive": @(meetingActive), @"microphone": microphoneState, @"camera": cameraState, @"backgroundBlur": blurState, @"hand": handState};
+    return blurState;
+}
+
+static NSDictionary *StateSnapshot(NSDictionary *scan) {
+    NSArray<AXNode *> *elements = scan[@"elements"];
+    BOOL micAmbiguous = NO;
+    BOOL cameraAmbiguous = NO;
+    BOOL handAmbiguous = NO;
+    BOOL leaveAmbiguous = NO;
+    BOOL launcherAmbiguous = NO;
+    BOOL effectsAmbiguous = NO;
+    AXNode *microphone = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return MicrophoneScore(node);
+    }, &micAmbiguous);
+    AXNode *camera = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return CameraScore(node);
+    }, &cameraAmbiguous);
+    AXNode *hand = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return HandScore(node);
+    }, &handAmbiguous);
+    AXNode *leave = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return LeaveScore(node);
+    }, &leaveAmbiguous);
+    AXNode *launcher = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return LauncherScore(node);
+    }, &launcherAmbiguous);
+    AXNode *effects = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
+        return EffectsLauncherScore(node);
+    }, &effectsAmbiguous);
+    // The effects launcher alone does not mark a meeting active; an ambiguous
+    // React launcher does.
+    BOOL meetingActive = microphone || camera || hand || leave || launcher
+        || micAmbiguous || cameraAmbiguous || handAmbiguous || leaveAmbiguous
+        || launcherAmbiguous;
+    NSString *microphoneState =
+        ControlFamilyState(meetingActive, microphone, micAmbiguous, MicrophoneStateForNode);
+    NSString *cameraState =
+        ControlFamilyState(meetingActive, camera, cameraAmbiguous, CameraStateForNode);
+    NSString *blurState = BlurSnapshotState(elements, meetingActive, effects, effectsAmbiguous);
+    NSString *handState =
+        HandSnapshotState(meetingActive, hand, handAmbiguous, launcher, launcherAmbiguous);
+    return @{
+        @"meetingActive": @(meetingActive),
+        @"microphone": microphoneState,
+        @"camera": cameraState,
+        @"backgroundBlur": blurState,
+        @"hand": handState,
+    };
 }
 
 static NSArray<AXNode *> *StateControlNodes(NSDictionary *scan) {
