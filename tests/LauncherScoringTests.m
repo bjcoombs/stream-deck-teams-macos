@@ -59,6 +59,7 @@ static AXNode *HandLauncher(NSString *customDescription) {
 static void TestBlurSnapshotState(int *failures) {
     AXNode *mic = Button(@"Unmute mic", @"microphone-button", 10);
     AXNode *effects = Button(@"Video effects and settings", @"video-effects-button", 10);
+    AXNode *secondEffects = Button(@"Video effects and settings", @"video-effects-button", 10);
     AXNode *blur = Button(@"Blur", @"background-effect-blur", 12);
     AXNode *selectedBlur = SelectedOption(@"Blur", @"background-effect-blur");
     AXNode *secondSelectedBlur = SelectedOption(@"Blur", @"background-effect-blur");
@@ -68,6 +69,8 @@ static void TestBlurSnapshotState(int *failures) {
         @"a selected no-effect option must report blur off", failures);
     ExpectState(@[mic, effects], @"backgroundBlur", @"unknown",
         @"an effects launcher with nothing selected must report blur unknown", failures);
+    ExpectState(@[mic, effects, secondEffects], @"backgroundBlur", @"unknown",
+        @"ambiguous effects launchers during a meeting must report blur unknown", failures);
     ExpectState(@[effects], @"meetingActive", @NO,
         @"an effects launcher alone must not mark a meeting active", failures);
     ExpectState(@[effects], @"backgroundBlur", @"unavailable",
