@@ -159,7 +159,7 @@
 			"Name": "Leave Call",
 			"UUID": "com.laurens-bolle.teams-reactions.leave",
 			"Icon": "imgs/actions/leave/icon",
-			"Tooltip": "Leave the active Microsoft Teams meeting without ending it for everyone.",
+			"Tooltip": "Hold for 1.5 seconds to leave the active Microsoft Teams meeting without ending it for everyone. A tap does nothing.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -194,8 +194,7 @@
 		}
 	],
 	"Nodejs": {
-		"Version": "24",
-		"Debug": "enabled"
+		"Version": "24"
 	},
 	"UUID": "com.laurens-bolle.teams-reactions"
 }
