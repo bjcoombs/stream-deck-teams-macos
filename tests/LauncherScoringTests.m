@@ -424,6 +424,15 @@ int main(void) {
         MarkMeetingReactionPicker(groupFive);
         Expect(ReactionScore(groupFive[0], ReactionDefinitions()[@"like"]) == NSIntegerMin,
             @"a reaction group that is not a button must not complete a picker", &failures);
+        NSArray *chatFive = @[Button(@"Like", @"chat-message-reaction", 14), Button(@"Love", @"chat-message-reaction", 14),
+            Button(@"Applause", @"chat-message-reaction", 14), Button(@"Laugh", @"chat-message-reaction", 14),
+            Button(@"Surprised", @"chat-message-reaction", 14)];
+        MarkMeetingReactionPicker(chatFive);
+        Expect(![chatFive[0] meetingReactionPicker], @"five reactions in chat context must not mark a picker", &failures);
+        Expect(PickerDismissTarget(reactionOnly, [reactionOnly[0] pid]) != nil,
+            @"a picker without Raise must still give Escape a control to confirm dismissal", &failures);
+        Expect(PickerDismissTarget(picker, pickerRaise.pid) == pickerRaise,
+            @"a picker with Raise must confirm dismissal against Raise", &failures);
 
         AXNode *stateLauncher = Button(@"React", @"reaction-menu-button", 8);
         stateLauncher.customDescription = @"React or raise your hand. Your hand is not raised. Has context menu";
