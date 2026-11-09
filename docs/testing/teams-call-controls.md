@@ -33,6 +33,19 @@ Use a disposable meeting. Keep a second participant or device connected for reac
 | Turn camera on from off | Teams camera starts and the key shows on | Not run |
 | Raise hand | The hand is raised and the key shows raised | Not run |
 | Lower hand | The hand is lowered and the key shows lowered | Not run |
+| Background Blur on from off | Teams selects standard blur and the key shows blur on | Not run |
+| Background Blur off from on | Teams selects no effect and the key shows blur off | Not run |
+| Background Blur with the effects panel closed and no camera | The key shows unknown or unavailable and a press alerts without changing Teams | Not run |
+| Background Blur completes inside the 8 second one-shot timeout | The press confirms without a helper timeout, including on first open of the effects panel | Not run |
+| Push to Talk held while muted | Teams unmutes while held and mutes on release; the key shows Talking, then Muted | Not run |
+| Push to Talk tapped quickly while muted | Teams ends muted; the release mute waits for the unmute instead of meeting the busy lock | Not run |
+| Push to Talk held while already unmuted | Teams stays unmuted on press and on release | Not run |
+| Push to Talk held, then another key's reaction tapped | The release mute retries past the busy lock and Teams ends muted | Not run |
+| Push to Talk held, then the profile or page switched | Teams mutes when the key disappears | Not run |
+| Push to Talk held, then the Stream Deck unplugged | Teams mutes after the disconnect | Not run |
+| Push to Talk held across system sleep and wake | Teams mutes after wake | Not run |
+| Push to Talk inside a Multi Action | The key alerts and Teams does not change | Not run |
+| Plugin process exits while Push to Talk is held | Unprotected: the microphone stays unmuted. Record what happens | Not run |
 | Leave as attendee | The local participant leaves and the meeting continues | Not run |
 | Leave as organizer | The local organizer leaves without selecting End meeting for all | Not run |
 

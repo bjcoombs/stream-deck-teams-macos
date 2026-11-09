@@ -18,7 +18,7 @@ import { HoldGate } from "../hold-gate";
 import { LEAVE_HOLD_MS, LeaveController } from "../leave-controller";
 import { commandCoordinator, operationLock, persistentControls } from "../teams-services";
 
-type StateField = "microphone" | "camera" | "hand";
+type StateField = "microphone" | "camera" | "backgroundBlur" | "hand";
 type KnownState = "muted" | "unmuted" | "on" | "off" | "raised" | "lowered";
 
 const UNKNOWN_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><rect width="144" height="144" rx="22" fill="#24262b"/><circle cx="72" cy="72" r="41" fill="none" stroke="#f0b429" stroke-width="9"/><text x="72" y="91" text-anchor="middle" font-family="Arial,sans-serif" font-size="58" font-weight="700" fill="#f0b429">?</text></svg>`;
@@ -32,6 +32,7 @@ function stateIndex(field: StateField, value: string): State | undefined {
 	const mappings: Record<StateField, readonly [KnownState, KnownState]> = {
 		microphone: ["unmuted", "muted"],
 		camera: ["on", "off"],
+		backgroundBlur: ["on", "off"],
 		hand: ["lowered", "raised"],
 	};
 	if (value === mappings[field][0]) return 0;
@@ -112,7 +113,7 @@ class StateSynchronizer {
 
 export const stateSynchronizer = new StateSynchronizer();
 
-abstract class ToggleCallControlAction extends SingletonAction {
+export abstract class ToggleCallControlAction extends SingletonAction {
 	protected abstract readonly field: StateField;
 	protected abstract readonly commands: readonly [TeamsCommand, TeamsCommand];
 
@@ -177,7 +178,7 @@ abstract class ToggleCallControlAction extends SingletonAction {
 	}
 }
 
-function logHelperError(operation: string, error: unknown): void {
+export function logHelperError(operation: string, error: unknown): void {
 	if (error instanceof HelperExecutionError) {
 		const exitCode = error.exitCode === null ? "unavailable" : String(error.exitCode);
 		streamDeck.logger.error(`${operation} failed (exit code ${exitCode}): ${error.diagnostic}`);

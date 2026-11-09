@@ -1,8 +1,8 @@
 # Teams Meeting Controls for Stream Deck
 
 Control a Microsoft Teams meeting from your Stream Deck on macOS: mute or unmute,
-toggle the camera, raise or lower your hand, leave the call, and send Like, Love,
-Applause, Laugh, or Surprise reactions.
+hold to talk, toggle the camera or background blur, raise or lower your hand,
+leave the call, and send Like, Love, Applause, Laugh, or Surprise reactions.
 
 The plugin uses macOS Accessibility. It needs no Teams credentials, network API,
 or separate companion application.
@@ -44,7 +44,8 @@ lessons learned are in [docs/retros](docs/retros/README.md).
 
 ## Using the controls
 
-Mute, camera, and hand keys show the state reported by Teams. Unknown or unavailable
+Mute, Push to Talk, camera, background blur, and hand keys show the state
+reported by Teams. Unknown or unavailable
 states have distinct icons. A green check confirms the requested state, or that
 Accessibility accepted a reaction. A yellow alert means the control is unavailable,
 ambiguous, busy, or failed.
@@ -53,11 +54,17 @@ ambiguous, busy, or failed.
 - Hold it to repeat at 7 attempts per second, starting after about 300 ms.
 - Release to stop. Each hold is limited to five seconds, including picker setup.
 - Reactions in Multi Actions send once. Only one Teams operation runs at a time.
+- Hold **Push to Talk** to unmute a muted microphone; release to mute it again.
+  If the microphone was already unmuted, the key changes nothing. Release,
+  removing the key, disconnecting the device, and system wake all mute again.
+  Push to Talk is refused in Multi Actions.
+- **Background Blur** turns Teams standard blur on or off.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
 
 Reaction acceptance does not prove delivery to another participant. Test **Leave
-Call** in a disposable meeting before relying on it.
+Call**, **Push to Talk**, and **Background Blur** in a disposable meeting before
+relying on them; neither new key has been tested live yet.
 
 ## Status
 

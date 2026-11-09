@@ -17,7 +17,7 @@ Stream Deck owns a bundled native child process while meeting-control keys are v
 
 ## Control state behavior
 
-Mute, camera, and hand actions use two Stream Deck states with automatic state changes disabled. The plugin asks the helper for current state when an action appears and updates all visible control keys after every completed command.
+Mute, Push to Talk, camera, background blur, and hand actions use two Stream Deck states with automatic state changes disabled. The plugin asks the helper for current state when an action appears and updates all visible control keys after every completed command.
 
 Accessibility attributes are read in batches and label definitions are shared within each helper process. Mute and camera changes verify fresh attributes on the discovered state controls immediately, then poll every 20 ms while awaiting confirmation. If Teams replaces the target, the helper performs a full scan without pressing it a second time. This avoids a second full tree traversal and a fixed 120 ms wait on the normal path while preserving state confirmation and the operation lock. Reactions also check for the picker immediately rather than waiting before their first scan.
 

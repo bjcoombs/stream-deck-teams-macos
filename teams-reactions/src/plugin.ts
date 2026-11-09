@@ -16,6 +16,8 @@ import {
 	cancelPendingLeave,
 	stateSynchronizer,
 } from "./actions/call-controls";
+import { BackgroundBlurAction } from "./actions/background-blur";
+import { PushToTalkAction, releaseAllPushToTalk } from "./actions/push-to-talk";
 import { persistentControls, reactionBurstCoordinator } from "./teams-services";
 
 streamDeck.logger.setLevel("info");
@@ -27,6 +29,8 @@ streamDeck.actions.registerAction(new LaughAction());
 streamDeck.actions.registerAction(new SurpriseAction());
 streamDeck.actions.registerAction(new MuteAction());
 streamDeck.actions.registerAction(new CameraAction());
+streamDeck.actions.registerAction(new BackgroundBlurAction());
+streamDeck.actions.registerAction(new PushToTalkAction());
 streamDeck.actions.registerAction(new HandAction());
 streamDeck.actions.registerAction(new LeaveAction());
 
@@ -35,10 +39,13 @@ streamDeck.devices.onDeviceDidDisconnect(ev => {
 	reactionBurstCoordinator.stopAll();
 	stateSynchronizer.disconnectDevice(ev.device.id);
 	if (!stateSynchronizer.hasVisibleControls) persistentControls.stop();
+	// After stop(): a fail-safe mute waits for the helper to exit and starts a fresh one.
+	void releaseAllPushToTalk();
 });
 streamDeck.system.onApplicationDidTerminate(() => reactionBurstCoordinator.stopAll());
 streamDeck.system.onSystemDidWakeUp(() => {
 	cancelPendingLeave();
+	void releaseAllPushToTalk();
 	persistentControls.invalidate();
 	if (stateSynchronizer.hasVisibleControls) void stateSynchronizer.refresh().catch(() => streamDeck.logger.warn("Teams state refresh after wake failed."));
 });
