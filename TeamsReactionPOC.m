@@ -483,15 +483,22 @@ static NSInteger CameraScore(AXNode *node) {
 // Recognize a meeting picker without relying on window titles or participant text.
 static void MarkMeetingReactionPicker(NSArray<AXNode *> *nodes) {
     NSMutableSet<NSString *> *reactions = [NSMutableSet set];
+    NSMutableSet<NSString *> *pressableReactions = [NSMutableSet set];
     BOOL hasHand = NO;
     for (AXNode *node in nodes) {
         if (!node.canPress || HasUnsafeContext(node)) continue;
         if (NodeMatchesAction(node, RaiseHandLabels()) || NodeMatchesAction(node, LowerHandLabels())) hasHand = YES;
+        BOOL pressable = [node.role isEqualToString:(__bridge NSString *)kAXButtonRole] && [node.actions containsObject:(__bridge NSString *)kAXPressAction];
         for (NSString *key in ReactionDefinitions()) {
-            if (NodeMatchesAction(node, ReactionDefinitions()[key][@"labels"])) [reactions addObject:key];
+            if (!NodeMatchesAction(node, ReactionDefinitions()[key][@"labels"])) continue;
+            [reactions addObject:key];
+            if (pressable) [pressableReactions addObject:key];
         }
     }
-    if (!hasHand || reactions.count < 3) return;
+    // Current Teams hides the whole toolbar, Raise included, while the React picker
+    // is open. All five reactions as pressable buttons identify it on their own.
+    BOOL reactionOnlyPicker = pressableReactions.count == ReactionDefinitions().count;
+    if (!reactionOnlyPicker && (!hasHand || reactions.count < 3)) return;
     for (AXNode *node in nodes) node.meetingReactionPicker = YES;
 }
 
@@ -826,15 +833,28 @@ static pid_t OpenMeetingPickerPID = 0;
 static AXNode *OpenMeetingPickerTarget = nil;
 static NSDictionary *MeetingToolbarScan = nil;
 
+static BOOL IsPickerControl(AXNode *node) {
+    if (NodeMatchesAction(node, RaiseHandLabels()) || NodeMatchesAction(node, LowerHandLabels())) return YES;
+    for (NSString *key in ReactionDefinitions()) {
+        if (NodeMatchesAction(node, ReactionDefinitions()[key][@"labels"])) return YES;
+    }
+    return NO;
+}
+
 static BOOL PickerTargetStillPresent(AXNode *target) {
     if (!target) return NO;
     AXNode *fresh = RefreshNode(target);
-    if (!fresh.canPress || ![fresh.role isEqualToString:target.role]) return NO;
-    if (NodeMatchesAction(fresh, RaiseHandLabels()) || NodeMatchesAction(fresh, LowerHandLabels())) return YES;
-    for (NSString *key in ReactionDefinitions()) {
-        if (NodeMatchesAction(fresh, ReactionDefinitions()[key][@"labels"])) return YES;
-    }
-    return NO;
+    return fresh.canPress && [fresh.role isEqualToString:target.role] && IsPickerControl(fresh);
+}
+
+// The control that confirms Escape closed the picker. Raise is preferred, but current
+// Teams pickers expose only reactions, so any pressable picker control will do.
+static AXNode *PickerDismissTarget(NSArray<AXNode *> *elements, pid_t pid) {
+    return BestNode(elements, ^NSInteger(AXNode *node) {
+        if (!node.meetingReactionPicker || node.pid != pid || !node.canPress) return NSIntegerMin;
+        NSInteger hand = HandScore(node);
+        return hand > 0 ? hand + 1000 : (IsPickerControl(node) ? 1 : NSIntegerMin);
+    });
 }
 
 static void DismissPickerUntilGone(void (^sendEscape)(void), BOOL (^stillPresent)(void)) {
@@ -873,10 +893,7 @@ static NSDictionary *ScanMeetingControlsInScan(NSDictionary *scan, BOOL includeH
         if (node.meetingReactionPicker) { OpenMeetingPickerPID = node.pid; pickerVisible = YES; break; }
     }
     if (pickerVisible) {
-        OpenMeetingPickerTarget = BestNode(scan[@"elements"], ^NSInteger(AXNode *node) {
-            if (!node.meetingReactionPicker || node.pid != OpenMeetingPickerPID) return NSIntegerMin;
-            return HandScore(node);
-        });
+        OpenMeetingPickerTarget = PickerDismissTarget(scan[@"elements"], OpenMeetingPickerPID);
     }
     if (pickerVisible && includeHand && MeetingToolbarScan) return WithMeetingToolbarState(scan);
     if (OpenMeetingPickerPID > 0) {
