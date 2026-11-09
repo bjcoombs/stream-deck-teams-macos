@@ -173,7 +173,7 @@ test("a busy release mute retries until it succeeds", async () => {
 	assert.deepEqual(key.calls, []);
 });
 
-test("a release mute that stays busy gives up with an alert", async () => {
+test("a release mute that is never confirmed gives up with one alert", async () => {
 	const { controller, commands, waits, logger } = setup({ responses: { mute: Array.from({ length: MUTE_ATTEMPTS }, () => ({ status: "busy" })) } });
 	const key = fakeKey();
 	await controller.keyDown(key, false);
@@ -181,18 +181,30 @@ test("a release mute that stays busy gives up with an alert", async () => {
 	assert.equal(commands.filter(command => command === "mute").length, MUTE_ATTEMPTS);
 	assert.equal(waits.length, MUTE_ATTEMPTS - 1);
 	assert.deepEqual(key.calls, ["showAlert"]);
-	assert.match(logger.lines.at(-1)[1], /could not mute/);
+	assert.match(logger.lines.at(-1)[1], /could not confirm the microphone muted/);
 });
 
-test("a failed or unconfirmed release mute alerts once", async () => {
+test("a failed or unconfirmed release mute retries until Teams confirms it", async () => {
 	for (const outcome of [new Error("helper failed"), completed("unknown")]) {
-		const { controller, commands } = setup({ responses: { mute: [outcome] } });
+		const { controller, commands, waits, logger } = setup({ responses: { mute: [outcome, { status: "busy" }] } });
 		const key = fakeKey();
 		await controller.keyDown(key, false);
 		await controller.keyUp(key);
-		assert.deepEqual(commands, ["unmute", "mute"]);
-		assert.deepEqual(key.calls, ["showAlert"]);
+		assert.deepEqual(commands, ["unmute", "mute", "mute", "mute"]);
+		assert.deepEqual(waits, [MUTE_RETRY_MS, MUTE_RETRY_MS]);
+		assert.deepEqual(key.calls, []);
+		assert.match(logger.lines.at(-1)[1], /muted the microphone again/);
 	}
+});
+
+test("release mute failures of every kind share one attempt budget", async () => {
+	const mixed = Array.from({ length: MUTE_ATTEMPTS }, (_, index) => [new Error("helper failed"), completed("unknown"), { status: "busy" }][index % 3]);
+	const { controller, commands } = setup({ responses: { mute: mixed } });
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	await controller.keyUp(key);
+	assert.equal(commands.filter(command => command === "mute").length, MUTE_ATTEMPTS);
+	assert.deepEqual(key.calls, ["showAlert"]);
 });
 
 test("a key that disappears while held mutes again", async () => {

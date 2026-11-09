@@ -6,7 +6,7 @@
 
 /** Delay between attempts when the release mute meets another Teams operation. */
 export const MUTE_RETRY_MS = 250;
-/** Attempts before a release mute that keeps meeting the operation lock gives up. */
+/** Attempts before a release mute that Teams never confirms gives up with an alert. */
 export const MUTE_ATTEMPTS = 20;
 
 export type PushToTalkKey = {
@@ -141,29 +141,36 @@ export class PushToTalkController {
 		return true;
 	}
 
+	/**
+	 * Mutes until Teams confirms it. A thrown error, an unconfirmed reply and the
+	 * operation lock all retry, because mute sets an explicit state and repeating
+	 * it can never unmute. The alert shows once, only if every attempt fails.
+	 */
 	private async muteAgain(key: PushToTalkKey): Promise<void> {
 		for (let attempt = 1; attempt <= MUTE_ATTEMPTS; attempt += 1) {
-			let result: MicrophoneCommandResult;
-			try {
-				result = await this.services.execute("mute");
-			} catch (error) {
-				this.logger.reportError("Teams command mute", error);
-				await this.alert(key);
-				return;
-			}
-			if (result.status === "completed") {
-				if (result.microphone === "muted") {
-					this.logger.info("Push to Talk muted the microphone again.");
-					return;
-				}
-				this.logger.warn("Teams command mute was accepted without confirmed state.");
-				await this.alert(key);
-				return;
-			}
+			if (await this.tryMute()) return;
 			if (attempt < MUTE_ATTEMPTS) await this.services.wait(MUTE_RETRY_MS);
 		}
-		this.logger.warn(`Push to Talk could not mute: another Teams operation held the lock for ${MUTE_ATTEMPTS} attempts.`);
+		this.logger.warn(`Push to Talk could not confirm the microphone muted after ${MUTE_ATTEMPTS} attempts.`);
 		await this.alert(key);
+	}
+
+	/** One mute attempt. True only when Teams confirms the microphone is muted. */
+	private async tryMute(): Promise<boolean> {
+		let result: MicrophoneCommandResult;
+		try {
+			result = await this.services.execute("mute");
+		} catch (error) {
+			this.logger.reportError("Teams command mute", error);
+			return false;
+		}
+		if (result.status === "busy") return false;
+		if (result.microphone === "muted") {
+			this.logger.info("Push to Talk muted the microphone again.");
+			return true;
+		}
+		this.logger.warn("Teams command mute was accepted without confirmed state; retrying.");
+		return false;
 	}
 
 	/** Shows the alert, logs a failure and never rejects. */

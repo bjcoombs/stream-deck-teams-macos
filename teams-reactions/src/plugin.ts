@@ -45,8 +45,9 @@ streamDeck.devices.onDeviceDidDisconnect(ev => {
 streamDeck.system.onApplicationDidTerminate(() => reactionBurstCoordinator.stopAll());
 streamDeck.system.onSystemDidWakeUp(() => {
 	cancelPendingLeave();
-	void releaseAllPushToTalk();
+	// Invalidate first: a fail-safe mute must not go to a helper connection that slept.
 	persistentControls.invalidate();
+	void releaseAllPushToTalk();
 	if (stateSynchronizer.hasVisibleControls) void stateSynchronizer.refresh().catch(() => streamDeck.logger.warn("Teams state refresh after wake failed."));
 });
 process.once("beforeExit", () => { reactionBurstCoordinator.stopAll(); persistentControls.stop(); });

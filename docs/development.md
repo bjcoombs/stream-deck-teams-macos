@@ -98,7 +98,7 @@ Normal command results are one JSON object on standard output. Diagnostics go to
 
 The persistent protocol is documented in [Architecture](architecture.md#persistent-protocol).
 
-The native helper retains experimental `blur-on` and `blur-off` commands for research and manual testing. The packaged Stream Deck plugin does not expose a Background Blur action.
+The native helper provides `blur-on` and `blur-off`. The packaged plugin exposes them through the Background Blur key, which runs them on the one-shot helper path because serve mode does not accept them. Live behaviour is unverified; see `docs/testing/teams-call-controls.md`.
 
 ## Keyboard shortcut fallback
 
