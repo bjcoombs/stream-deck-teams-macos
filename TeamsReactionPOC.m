@@ -483,15 +483,22 @@ static NSInteger CameraScore(AXNode *node) {
 // Recognize a meeting picker without relying on window titles or participant text.
 static void MarkMeetingReactionPicker(NSArray<AXNode *> *nodes) {
     NSMutableSet<NSString *> *reactions = [NSMutableSet set];
+    NSMutableSet<NSString *> *pressableReactions = [NSMutableSet set];
     BOOL hasHand = NO;
     for (AXNode *node in nodes) {
         if (!node.canPress || HasUnsafeContext(node)) continue;
         if (NodeMatchesAction(node, RaiseHandLabels()) || NodeMatchesAction(node, LowerHandLabels())) hasHand = YES;
+        BOOL pressable = [node.role isEqualToString:(__bridge NSString *)kAXButtonRole] && [node.actions containsObject:(__bridge NSString *)kAXPressAction];
         for (NSString *key in ReactionDefinitions()) {
-            if (NodeMatchesAction(node, ReactionDefinitions()[key][@"labels"])) [reactions addObject:key];
+            if (!NodeMatchesAction(node, ReactionDefinitions()[key][@"labels"])) continue;
+            [reactions addObject:key];
+            if (pressable) [pressableReactions addObject:key];
         }
     }
-    if (!hasHand || reactions.count < 3) return;
+    // Current Teams hides the whole toolbar, Raise included, while the React picker
+    // is open. All five reactions as pressable buttons identify it on their own.
+    BOOL reactionOnlyPicker = pressableReactions.count == ReactionDefinitions().count;
+    if (!reactionOnlyPicker && (!hasHand || reactions.count < 3)) return;
     for (AXNode *node in nodes) node.meetingReactionPicker = YES;
 }
 
