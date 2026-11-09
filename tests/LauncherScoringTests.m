@@ -404,6 +404,36 @@ int main(void) {
         MarkMeetingReactionPicker(@[chatRaise, pickerLike, pickerLove, pickerLaugh]);
         Expect(HandScore(chatRaise) == NSIntegerMin, @"chat Raise must be rejected", &failures);
 
+        // Current Teams exposes only the five reaction buttons while the picker is open.
+        NSArray *reactionOnly = @[Button(@"Like", @"", 14), Button(@"Love", @"", 14), Button(@"Applause", @"", 14),
+            Button(@"Laugh", @"", 14), Button(@"Surprised", @"", 14)];
+        MarkMeetingReactionPicker(reactionOnly);
+        Expect(ReactionScore(reactionOnly[2], ReactionDefinitions()[@"applause"]) != NSIntegerMin,
+            @"a picker exposing only the five reaction buttons must be recognised", &failures);
+        Expect(ReactionScore(reactionOnly[4], ReactionDefinitions()[@"surprise"]) != NSIntegerMin,
+            @"Surprised must match the surprise reaction", &failures);
+        NSArray *fourReactions = @[Button(@"Like", @"", 14), Button(@"Heart", @"", 14), Button(@"Laugh", @"", 14),
+            Button(@"Surprised", @"", 14)];
+        MarkMeetingReactionPicker(fourReactions);
+        Expect(ReactionScore(fourReactions[0], ReactionDefinitions()[@"like"]) == NSIntegerMin,
+            @"four reactions without Raise, as in a chat reaction bar, must not be a picker", &failures);
+        AXNode *groupApplause = Button(@"Applause", @"", 14);
+        groupApplause.role = (__bridge NSString *)kAXGroupRole;
+        NSArray *groupFive = @[Button(@"Like", @"", 14), Button(@"Love", @"", 14), groupApplause,
+            Button(@"Laugh", @"", 14), Button(@"Surprised", @"", 14)];
+        MarkMeetingReactionPicker(groupFive);
+        Expect(ReactionScore(groupFive[0], ReactionDefinitions()[@"like"]) == NSIntegerMin,
+            @"a reaction group that is not a button must not complete a picker", &failures);
+        NSArray *chatFive = @[Button(@"Like", @"chat-message-reaction", 14), Button(@"Love", @"chat-message-reaction", 14),
+            Button(@"Applause", @"chat-message-reaction", 14), Button(@"Laugh", @"chat-message-reaction", 14),
+            Button(@"Surprised", @"chat-message-reaction", 14)];
+        MarkMeetingReactionPicker(chatFive);
+        Expect(![chatFive[0] meetingReactionPicker], @"five reactions in chat context must not mark a picker", &failures);
+        Expect(PickerDismissTarget(reactionOnly, [reactionOnly[0] pid]) != nil,
+            @"a picker without Raise must still give Escape a control to confirm dismissal", &failures);
+        Expect(PickerDismissTarget(picker, pickerRaise.pid) == pickerRaise,
+            @"a picker with Raise must confirm dismissal against Raise", &failures);
+
         AXNode *stateLauncher = Button(@"React", @"reaction-menu-button", 8);
         stateLauncher.customDescription = @"React or raise your hand. Your hand is not raised. Has context menu";
         NSDictionary *launcherScan = @{@"applicationCount": @1, @"elements": @[stateLauncher]};
