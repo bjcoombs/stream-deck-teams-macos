@@ -2,8 +2,8 @@
 export default {
 	testRunner: "command",
 	// The architecture test reads files outside the sandbox, so it is excluded here.
-	commandRunner: { command: "node --test tests/helper-runner.test.mjs tests/persistent-controls.test.mjs tests/hold-gate.test.mjs tests/manifest.test.mjs" },
-	mutate: ["src/helper-runner.ts", "src/hold-gate.ts"],
+	commandRunner: { command: "node --test tests/helper-runner.test.mjs tests/persistent-controls.test.mjs tests/hold-gate.test.mjs tests/manifest.test.mjs tests/push-to-talk-controller.test.mjs" },
+	mutate: ["src/helper-runner.ts", "src/hold-gate.ts", "src/push-to-talk-controller.ts"],
 	coverageAnalysis: "off",
 	reporters: ["clear-text", "progress", "json"],
 	jsonReporter: { fileName: "reports/mutation/mutation.json" },
