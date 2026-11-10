@@ -10,7 +10,7 @@ export const TEAMS_COMMANDS = [
 	"blur-on", "blur-off", "blur-toggle",
 	"hand-raise", "hand-lower",
 	"share-toggle",
-	"leave",
+	"leave", "leave-stay",
 ] as const;
 
 export type Reaction = (typeof REACTIONS)[number];

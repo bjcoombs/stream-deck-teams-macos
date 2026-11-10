@@ -12,6 +12,7 @@ import { HelperExecutionError, type TeamsCommand } from "../helper-runner";
 import { HoldGate } from "../hold-gate";
 import { LEAVE_HOLD_MS, LeaveController } from "../leave-controller";
 import { commandCoordinator } from "../teams-services";
+import { stayInLeaveDialog } from "./leave-dialog";
 import { keyActionFromEvent, keyReleased, pressAllowed, type StateField, stateIndex, stateSynchronizer } from "./state-synchronizer";
 
 export abstract class ToggleCallControlAction extends SingletonAction {
@@ -123,7 +124,7 @@ const leaveController = new LeaveController(executeLeave, {
 	info: message => streamDeck.logger.info(message),
 	warn: message => streamDeck.logger.warn(message),
 	reportError: logHelperError,
-}, new HoldGate(LEAVE_HOLD_MS));
+}, new HoldGate(LEAVE_HOLD_MS), stayInLeaveDialog);
 
 /** Disarms any pending Leave and restores its key image, for device disconnect and system wake. */
 export function cancelPendingLeave(): void {

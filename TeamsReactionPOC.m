@@ -30,6 +30,7 @@ static CFStringRef const AXScrollToVisibleAction = CFSTR("AXScrollToVisible");
 @property(nonatomic) BOOL selected;
 @property(nonatomic) BOOL meetingReactionPicker;
 @property(nonatomic) BOOL inToolbar;
+@property(nonatomic, strong) AXNode *parent;
 - (AXUIElementRef)element;
 - (NSString *)searchableText;
 - (NSString *)displayText;
@@ -100,7 +101,7 @@ static void PrintUsage(const char *executablePath) {
     printf("  %s status|serve\n", executable.UTF8String);
     printf("  %s inspect-controls\n", executable.UTF8String);
     printf("  %s mute|unmute|camera-on|camera-off\n", executable.UTF8String);
-    printf("  %s blur-on|blur-off|blur-toggle|hand-raise|hand-lower|share-toggle|leave\n", executable.UTF8String);
+    printf("  %s blur-on|blur-off|blur-toggle|hand-raise|hand-lower|share-toggle|leave|leave-stay\n", executable.UTF8String);
     printf("  %s react like|love|applause|laugh|surprise\n", executable.UTF8String);
     printf("  %s inspect\n\n", executable.UTF8String);
     printf("inspect and inspect-controls do not press anything.\n");
@@ -264,6 +265,7 @@ static void WalkElements(id root, NSArray *(^visit)(id element, NSInteger depth)
 static NSArray<AXNode *> *CollectElements(AXUIElementRef root, pid_t pid, NSString *processName, NSString *windowTitle, AXUIElementRef focusedWindow) {
     NSMutableArray<AXNode *> *result = [NSMutableArray array];
     NSMutableSet *toolbarElements = [NSMutableSet set];
+    NSMapTable *parents = [NSMapTable strongToStrongObjectsMapTable];
     WalkElements((__bridge id)root, ^NSArray *(id object, NSInteger depth) {
         AXUIElementRef element = (__bridge AXUIElementRef)object;
         AXNode *node = [AXNode new];
@@ -276,6 +278,7 @@ static NSArray<AXNode *> *CollectElements(AXUIElementRef root, pid_t pid, NSStri
         node.actions = Actions(element);
         node.depth = depth;
         node.focusedWindow = SameElement(focusedWindow, root);
+        node.parent = [parents objectForKey:object];
         node.inToolbar = [node.role isEqualToString:(__bridge NSString *)kAXToolbarRole] || [toolbarElements containsObject:object];
         [result addObject:node];
         id children = attributes[(__bridge NSString *)kAXChildrenAttribute];
@@ -285,6 +288,7 @@ static NSArray<AXNode *> *CollectElements(AXUIElementRef root, pid_t pid, NSStri
             if (CFGetTypeID((__bridge CFTypeRef)child) == AXUIElementGetTypeID()) [elements addObject:child];
         }
         if (node.inToolbar) [toolbarElements addObjectsFromArray:elements];
+        for (id child in elements) [parents setObject:node forKey:child];
         return elements;
     });
     MarkMeetingReactionPicker(result);
@@ -1040,6 +1044,38 @@ static int PerformDesiredControl(NSString *command, NSString *desiredState, NSSt
     return 13;
 }
 
+static AXNode *LeaveDialogChild(NSArray<AXNode *> *elements, AXNode *group, NSString *label) {
+    for (AXNode *node in elements) {
+        if (node.parent != group || ![node.role isEqualToString:(__bridge NSString *)kAXButtonRole]) continue;
+        if ([node.actions containsObject:(__bridge NSString *)kAXPressAction] && (EqualsAny(node.nodeDescription, @[label]) || EqualsAny(node.title, @[label]))) return node;
+    }
+    return nil;
+}
+
+// Leaving while sharing, Teams asks "You’re currently sharing. Are you sure you want to
+// leave?" in a dialogue. Only that dialogue's own Stay and Leave buttons are returned.
+static AXNode *LeaveDialogButton(NSArray<AXNode *> *elements, NSString *label) {
+    for (AXNode *text in elements) {
+        if (![text.searchableText containsString:@"currently sharing"] || ![text.searchableText containsString:@"leave"]) continue;
+        AXNode *group = text.parent;
+        for (NSInteger level = 0; group && level < 3; level += 1, group = group.parent) {
+            if (LeaveDialogChild(elements, group, @"stay") && LeaveDialogChild(elements, group, @"leave")) return LeaveDialogChild(elements, group, label);
+        }
+    }
+    return nil;
+}
+
+// A tap on Leave answers Stay. Without the dialogue it presses nothing.
+static int PerformLeaveStay(void) {
+    NSDictionary *scan = ScanTeams();
+    AXNode *stay = LeaveDialogButton(scan[@"elements"], @"stay");
+    AXError error = stay ? PressNode(stay) : kAXErrorSuccess;
+    WriteJSON(ResultForScan(scan, @"leave-stay", stay && error == kAXErrorSuccess));
+    if (error == kAXErrorSuccess) return [scan[@"applicationCount"] integerValue] == 0 ? 2 : 0;
+    fprintf(stderr, "Could not press Stay: %s.\n", AXErrorDescription(error).UTF8String);
+    return 12;
+}
+
 static int PerformLeave(void) {
     NSDictionary *initialScan = ScanMeetingControls(NO);
     if ([initialScan[@"applicationCount"] integerValue] == 0) {
@@ -1053,7 +1089,9 @@ static int PerformLeave(void) {
         return 10;
     }
     BOOL ambiguous = NO;
-    AXNode *leave = BestUniqueNode(initialScan[@"elements"], ^NSInteger(AXNode *node) { return LeaveScore(node); }, &ambiguous);
+    // The leave-while-sharing dialogue's own Leave wins over the toolbar's.
+    AXNode *leave = LeaveDialogButton(initialScan[@"elements"], @"leave")
+        ?: BestUniqueNode(initialScan[@"elements"], ^NSInteger(AXNode *node) { return LeaveScore(node); }, &ambiguous);
     if (ambiguous) {
         WriteJSON(ResultForScan(initialScan, @"leave", NO));
         fprintf(stderr, "More than one equally plausible Leave control was exposed.\n");
@@ -1659,7 +1697,7 @@ int main(int argc, const char *argv[]) {
             PrintUsage(argv[0]);
             return 0;
         }
-        NSSet<NSString *> *singleArgumentCommands = [NSSet setWithArray:@[@"serve", @"status", @"inspect", @"inspect-controls", @"mute", @"unmute", @"camera-on", @"camera-off", @"blur-on", @"blur-off", @"blur-toggle", @"hand-raise", @"hand-lower", @"share-toggle", @"leave"]];
+        NSSet<NSString *> *singleArgumentCommands = [NSSet setWithArray:@[@"serve", @"status", @"inspect", @"inspect-controls", @"mute", @"unmute", @"camera-on", @"camera-off", @"blur-on", @"blur-off", @"blur-toggle", @"hand-raise", @"hand-lower", @"share-toggle", @"leave", @"leave-stay"]];
         BOOL directReaction = ReactionDefinitions()[command] != nil;
         BOOL validArity = (argc == 2 && ([singleArgumentCommands containsObject:command] || directReaction))
             || (argc == 3 && [command isEqualToString:@"react"]);
@@ -1686,6 +1724,7 @@ int main(int argc, const char *argv[]) {
             if ([command isEqualToString:@"hand-raise"]) return PerformDesiredControl(command, @"raised", @"hand", 40, ^NSInteger(AXNode *node) { return HandScore(node); }, ^NSString *(AXNode *node) { return HandStateForNode(node); });
             if ([command isEqualToString:@"hand-lower"]) return PerformDesiredControl(command, @"lowered", @"hand", 40, ^NSInteger(AXNode *node) { return HandScore(node); }, ^NSString *(AXNode *node) { return HandStateForNode(node); });
             if ([command isEqualToString:@"leave"]) return PerformLeave();
+            if ([command isEqualToString:@"leave-stay"]) return PerformLeaveStay();
             if ([command isEqualToString:@"share-toggle"]) return PerformShareToggle();
             if ([command isEqualToString:@"blur-on"]) return PerformBlur(1);
             if ([command isEqualToString:@"blur-off"]) return PerformBlur(0);

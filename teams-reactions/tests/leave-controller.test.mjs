@@ -44,15 +44,16 @@ function fakeLogger() {
 	};
 }
 
-function setup(execute = async () => ({ status: "completed" })) {
+function setup(execute = async () => ({ status: "completed" }), stay = undefined) {
 	const timers = fakeTimers();
 	const logger = fakeLogger();
 	let executions = 0;
+	let stays = 0;
 	const controller = new LeaveController(async () => {
 		executions += 1;
 		return execute();
-	}, logger, new HoldGate(LEAVE_HOLD_MS, timers));
-	return { timers, logger, controller, executions: () => executions };
+	}, logger, new HoldGate(LEAVE_HOLD_MS, timers), stay && (async () => { stays += 1; return stay(); }));
+	return { timers, logger, controller, executions: () => executions, stays: () => stays };
 }
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -220,4 +221,66 @@ test("a rejecting showAlert in the error path leaves no unhandled rejection", as
 	} finally {
 		process.off("unhandledRejection", listener);
 	}
+});
+
+test("a tap while Teams asks whether to leave while sharing presses Stay and shows OK", async () => {
+	const { timers, logger, controller, executions, stays } = setup(undefined, async () => "stayed");
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	await controller.keyUp(key);
+	await flush();
+	timers.fireAll();
+	await flush();
+	assert.equal(stays(), 1);
+	assert.equal(executions(), 0, "a tap never leaves");
+	assert.deepEqual(key.calls, [["setImage", LEAVE_ARMED_IMAGE], ["setImage"], ["showOk"]]);
+	assert.deepEqual(logger.lines, [["info", "Stayed in the meeting: pressed Stay in the Teams leave-while-sharing dialogue."]]);
+});
+
+test("a hold while Teams asks whether to leave runs Leave and never Stay", async () => {
+	const { timers, controller, executions, stays } = setup(undefined, async () => "stayed");
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	timers.fireAll();
+	await flush();
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(executions(), 1);
+	assert.equal(stays(), 0, "the release after a completed hold must not press Stay");
+	assert.deepEqual(key.calls.at(-1), ["showOk"]);
+});
+
+for (const outcome of ["none", "busy"]) {
+	test(`a tap with no Stay pressed (${outcome}) is an ordinary cancelled Leave`, async () => {
+		const { logger, controller, executions, stays } = setup(undefined, async () => outcome);
+		const key = fakeKey();
+		await controller.keyDown(key, false);
+		await controller.keyUp(key);
+		await flush();
+		assert.equal(stays(), 1);
+		assert.equal(executions(), 0);
+		assert.deepEqual(key.calls, [["setImage", LEAVE_ARMED_IMAGE], ["setImage"], ["showAlert"]]);
+		assert.deepEqual(logger.lines, [["info", `Leave cancelled: the key was released before ${LEAVE_HOLD_MS} ms.`]]);
+	});
+}
+
+test("a failed Stay is reported and the tap still alerts as cancelled", async () => {
+	const failure = new Error("helper failed");
+	const { logger, controller, executions } = setup(undefined, async () => { throw failure; });
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(executions(), 0);
+	assert.deepEqual(key.calls.at(-1), ["showAlert"]);
+	assert.deepEqual(logger.lines[0], ["error", "Teams command leave-stay", failure]);
+});
+
+test("a multi-action Leave alerts without pressing Stay", async () => {
+	const { controller, stays } = setup(undefined, async () => "stayed");
+	const key = fakeKey();
+	await controller.keyDown(key, true);
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(stays(), 0);
 });

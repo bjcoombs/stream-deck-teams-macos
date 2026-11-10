@@ -231,6 +231,41 @@ static void TestScreenShare(int *failures) {
     Expect(RefreshedControlsMatch(@[toolbarStop], @[refreshed]), @"the toolbar button changing from Stop sharing to Share must stay a Share control", failures);
 }
 
+static AXNode *Child(AXNode *parent, NSString *role, NSString *description) {
+    AXNode *node = Button(@"", @"", parent ? parent.depth + 1 : 8);
+    node.role = role;
+    node.nodeDescription = description;
+    node.parent = parent;
+    return node;
+}
+
+// Live Teams scan (10 Nov 2026): leaving while sharing opens a dialogue group whose
+// inner group holds the question text and whose own children are Stay and Leave.
+static void TestLeaveDialogue(int *failures) {
+    NSString *button = (__bridge NSString *)kAXButtonRole, *group = (__bridge NSString *)kAXGroupRole;
+    AXNode *dialogue = Child(nil, group, @"");
+    AXNode *inner = Child(dialogue, group, @"");
+    AXNode *text = Child(inner, (__bridge NSString *)kAXStaticTextRole, @"");
+    text.value = @"You’re currently sharing. Are you sure you want to leave?";
+    AXNode *stay = Child(dialogue, button, @"Stay");
+    AXNode *dialogueLeave = Child(dialogue, button, @"Leave");
+    AXNode *toolbar = Child(nil, (__bridge NSString *)kAXToolbarRole, @"");
+    AXNode *toolbarLeave = Child(toolbar, button, @"Leave");
+    toolbarLeave.title = @"Leave"; toolbarLeave.inToolbar = YES;
+    AXNode *otherStay = Child(toolbar, button, @"Stay");
+    NSArray *open = @[toolbar, toolbarLeave, otherStay, dialogue, inner, text, stay, dialogueLeave];
+    Expect(LeaveDialogButton(open, @"leave") == dialogueLeave, @"the dialogue's Leave must be chosen over the toolbar Leave", failures);
+    Expect(LeaveDialogButton(open, @"stay") == stay, @"Stay must come from the dialogue, never another Stay button", failures);
+    Expect(LeaveDialogButton(@[toolbar, toolbarLeave, otherStay], @"stay") == nil, @"without the dialogue no Stay is pressed", failures);
+    Expect(LeaveDialogButton(@[toolbar, toolbarLeave], @"leave") == nil, @"without the dialogue Leave falls back to the toolbar scorer", failures);
+    Expect(LeaveDialogButton(@[dialogue, inner, text, dialogueLeave, otherStay], @"stay") == nil, @"a dialogue without its own Stay must not match", failures);
+    AXNode *otherText = Child(inner, (__bridge NSString *)kAXStaticTextRole, @"");
+    otherText.value = @"Are you sure you want to leave?";
+    Expect(LeaveDialogButton(@[dialogue, inner, otherText, stay, dialogueLeave], @"leave") == nil, @"the question must mention current sharing", failures);
+    stay.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(LeaveDialogButton(open, @"stay") == nil, @"Stay needs an actual press action", failures);
+}
+
 int main(void) {
     @autoreleasepool {
         int failures = 0;
@@ -242,6 +277,7 @@ int main(void) {
         TestLiveEffectsPanel(&failures);
         TestShareDialogue(&failures);
         TestScreenShare(&failures);
+        TestLeaveDialogue(&failures);
 
         __block NSInteger reactionPresses = 0;
         __block NSInteger reacquisitions = 0;

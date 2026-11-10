@@ -18,6 +18,12 @@ export type LeaveKey = {
 
 export type LeaveExecute = () => Promise<{ status: "completed" | "busy" }>;
 
+/**
+ * Presses Stay in the dialogue Teams shows when you leave while sharing. "none"
+ * means no dialogue was open, so the tap is an ordinary cancelled Leave.
+ */
+export type LeaveStay = () => Promise<"stayed" | "none" | "busy">;
+
 export type LeaveLogger = {
 	info(message: string): void;
 	warn(message: string): void;
@@ -28,12 +34,14 @@ export class LeaveController {
 	private readonly execute: LeaveExecute;
 	private readonly logger: LeaveLogger;
 	private readonly gate: HoldGate;
+	private readonly stayInDialog: LeaveStay;
 	private readonly armedKeys = new Map<string, LeaveKey>();
 
-	constructor(execute: LeaveExecute, logger: LeaveLogger, gate: HoldGate) {
+	constructor(execute: LeaveExecute, logger: LeaveLogger, gate: HoldGate, stayInDialog: LeaveStay = async () => "none") {
 		this.execute = execute;
 		this.logger = logger;
 		this.gate = gate;
+		this.stayInDialog = stayInDialog;
 	}
 
 	async keyDown(key: LeaveKey, isInMultiAction: boolean): Promise<void> {
@@ -51,8 +59,10 @@ export class LeaveController {
 		await this.safe(() => key.setImage(LEAVE_ARMED_IMAGE), "show the armed Leave image");
 	}
 
+	/** A tap cancels the Leave, and answers Stay if Teams is asking whether to leave while sharing. */
 	async keyUp(key: LeaveKey): Promise<void> {
 		if (!this.disarm(key.id)) return;
+		if (await this.stay(key)) return;
 		this.logger.info(`Leave cancelled: the key was released before ${LEAVE_HOLD_MS} ms.`);
 		await this.alert(key);
 	}
@@ -97,6 +107,20 @@ export class LeaveController {
 		}
 		this.logger.info("Teams meeting leave completed.");
 		await this.safe(() => key.showOk(), "show the Leave confirmation");
+	}
+
+	private async stay(key: LeaveKey): Promise<boolean> {
+		let outcome: "stayed" | "none" | "busy";
+		try {
+			outcome = await this.stayInDialog();
+		} catch (error) {
+			this.logger.reportError("Teams command leave-stay", error);
+			return false;
+		}
+		if (outcome !== "stayed") return false;
+		this.logger.info("Stayed in the meeting: pressed Stay in the Teams leave-while-sharing dialogue.");
+		await this.safe(() => key.showOk(), "show the Stay confirmation");
+		return true;
 	}
 
 	private alert(key: LeaveKey): Promise<void> {

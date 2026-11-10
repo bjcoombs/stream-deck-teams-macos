@@ -98,6 +98,14 @@ test("share-toggle is a one-shot helper command that reports the screen share st
 	assert.equal(isPersistentCommand("share-toggle"), false, "share-toggle opens the share picker, so it never runs in the persistent helper");
 });
 
+test("leave-stay is a one-shot helper command", async () => {
+	const capture = {};
+	const result = await runTeamsCommand("leave-stay", { execFileImpl: execResult({ ...STATE_RESULT, command: "leave-stay", changed: true, screenShare: "on" }, capture) });
+	assert.deepEqual(capture.args, ["leave-stay"]);
+	assert.equal(result.changed, true);
+	assert.equal(isPersistentCommand("leave-stay"), false);
+});
+
 test("maps helper exit codes to privacy-safe diagnostics", async () => {
 	await assert.rejects(
 		runTeamsCommand("status", { helperPath: "/usr/bin/false" }),

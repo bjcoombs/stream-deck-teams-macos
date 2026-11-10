@@ -71,6 +71,9 @@ ambiguous, busy, or failed.
   and a press while the picker is already open leaves it open.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
+  If you leave from Teams while sharing, Teams asks "You're currently sharing.
+  Are you sure you want to leave?". While that question shows, holding **Leave
+  Call** presses its Leave and a tap presses its Stay, with a green check.
 
 While no Teams meeting is active, every key from this plugin shows a dimmed
 image that keeps its colours, and a press does nothing: no Teams command,
