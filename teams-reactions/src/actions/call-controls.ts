@@ -92,7 +92,8 @@ class StateSynchronizer {
 
 	async apply(reported: TeamsState): Promise<void> {
 		this.blur = stickyBlur(this.blur, reported.backgroundBlur);
-		const result = this.latest = { ...reported, backgroundBlur: this.blur };
+		const result = { ...reported, backgroundBlur: this.blur };
+		this.latest = result;
 		const updates: Promise<unknown>[] = [];
 		for (const [field, actions] of this.visible) {
 			const value = result[field];

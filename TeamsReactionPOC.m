@@ -264,7 +264,7 @@ static void PopulateNode(AXNode *node, NSDictionary *attributes) {
     node.value = AttributeString(attributes[(__bridge NSString *)kAXValueAttribute]);
     node.selected = AttributeBoolean(attributes[(__bridge NSString *)kAXSelectedAttribute]);
     // Teams marks the chosen background menu item with AXValue 1, not AXSelected.
-    if ([node.role isEqualToString:(__bridge NSString *)kAXMenuItemRole]) node.selected = node.selected || [node.value isEqualToString:@"1"];
+    if ([node.role isEqualToString:(__bridge NSString *)kAXMenuItemRole] && [node.value isEqualToString:@"1"]) node.selected = YES;
 }
 
 static NSString *StringAttribute(AXUIElementRef element, CFStringRef attribute) {
@@ -1216,6 +1216,7 @@ static int PerformBlur(NSInteger request) {
                 if (targetAmbiguous) break;
             } while (!target && deadline.timeIntervalSinceNow > 0);
             if (targetAmbiguous) {
+                CloseEffectsPanel(openedLauncher);
                 WriteJSON(ResultForScan(currentScan, command, NO));
                 fprintf(stderr, "The requested video effect was ambiguous.\n");
                 return 11;
@@ -1236,6 +1237,7 @@ static int PerformBlur(NSInteger request) {
     ScrollNodeIntoView(target);
     AXError targetError = PressNode(target);
     if (targetError != kAXErrorSuccess) {
+        CloseEffectsPanel(openedLauncher);
         WriteJSON(ResultForScan(currentScan, command, NO));
         fprintf(stderr, "Could not select the requested video effect: %s.\n", AXErrorDescription(targetError).UTF8String);
         return 12;

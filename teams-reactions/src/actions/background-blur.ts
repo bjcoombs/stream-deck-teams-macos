@@ -15,7 +15,9 @@ export class BackgroundBlurAction extends ToggleCallControlAction {
 	protected readonly commands = ["blur-on", "blur-off"] as const;
 
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-		if (ev.payload.isInMultiAction) return super.onKeyDown(ev);
+		if (ev.payload.isInMultiAction) {
+			return super.onKeyDown(ev);
+		}
 		try {
 			const execution = await commandCoordinator.execute("blur-toggle");
 			if (execution.status === "busy") {
