@@ -56,3 +56,11 @@ test("Leave Call is guarded by the hold gate", async () => {
 	assert.match(leave, /leaveController\.keyDown\(/, "LeaveAction must delegate key-down to the Leave controller");
 	assert.doesNotMatch(leave.slice(0, leave.indexOf("onKeyUp")), /execute\("leave"\)/, "onKeyDown must not run leave directly");
 });
+
+test("Push to Talk logic stays in its SDK-free controller", async () => {
+	const controller = await fs.readFile(path.join(pluginRoot, "src", "push-to-talk-controller.ts"), "utf8");
+	assert.doesNotMatch(controller, /@elgato\/streamdeck/, "push-to-talk-controller.ts must stay free of the Stream Deck SDK so tests can load it");
+	const text = await fs.readFile(path.join(pluginRoot, "src", "actions", "push-to-talk.ts"), "utf8");
+	assert.match(text, /pushToTalkController\.keyDown\(/, "PushToTalkAction must delegate key-down to the controller");
+	assert.match(text, /pushToTalkController\.keyUp\(/, "PushToTalkAction must delegate key-up to the controller");
+});

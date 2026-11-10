@@ -44,6 +44,8 @@ render_control() {
 
 render_control mute mute-unmuted mute-muted
 render_control camera camera-on camera-off
+render_control blur blur-on blur-off
+render_control push-to-talk push-to-talk-unmuted push-to-talk-muted
 render_control hand hand-lowered hand-raised
 render_control leave leave
 

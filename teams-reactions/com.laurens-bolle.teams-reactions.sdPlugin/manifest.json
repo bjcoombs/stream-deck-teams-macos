@@ -1,7 +1,7 @@
 {
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"Name": "Teams Meeting Controls",
-	"Version": "0.2.0.14",
+	"Version": "0.2.0.15",
 	"Author": "Laurens Bolle",
 	"Actions": [
 		{
@@ -112,6 +112,28 @@
 			]
 		},
 		{
+			"Name": "Push to Talk",
+			"UUID": "com.laurens-bolle.teams-reactions.push-to-talk",
+			"Icon": "imgs/actions/push-to-talk/icon",
+			"Tooltip": "Hold to unmute; release to mute again.",
+			"Controllers": [
+				"Keypad"
+			],
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/push-to-talk/unmuted",
+					"Title": "Talking",
+					"ShowTitle": false
+				},
+				{
+					"Image": "imgs/actions/push-to-talk/muted",
+					"Title": "Muted",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
 			"Name": "Camera",
 			"UUID": "com.laurens-bolle.teams-reactions.camera",
 			"Icon": "imgs/actions/camera/icon",
@@ -129,6 +151,28 @@
 				{
 					"Image": "imgs/actions/camera/off",
 					"Title": "Camera off",
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Background Blur",
+			"UUID": "com.laurens-bolle.teams-reactions.blur",
+			"Icon": "imgs/actions/blur/icon",
+			"Tooltip": "Turn background blur on or off in the active Microsoft Teams meeting.",
+			"Controllers": [
+				"Keypad"
+			],
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/blur/on",
+					"Title": "Blur on",
+					"ShowTitle": false
+				},
+				{
+					"Image": "imgs/actions/blur/off",
+					"Title": "Blur off",
 					"ShowTitle": false
 				}
 			]
