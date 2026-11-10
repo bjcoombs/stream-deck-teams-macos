@@ -10,6 +10,7 @@ import {
 	HelperExecutionError,
 	OperationLock,
 	ReactionBurstCoordinator,
+	stickyBlur,
 	ReactionCoordinator,
 	parseBurstResult,
 	parseTeamsResult,
@@ -240,4 +241,14 @@ test("burst coordinator matches key-up by action context and stays exclusive", a
 	assert.equal(stopCount, 1);
 	resolveBurst({ command: "burst", reaction: "love", attempted: 1, accessibilityAccepted: 1, elapsedMs: 100, stopReason: "key-up" });
 	await started.completion;
+});
+
+test("stickyBlur keeps the last confirmed blur while the effects panel is closed", () => {
+	assert.equal(stickyBlur("on", "unknown"), "on");
+	assert.equal(stickyBlur("off", "unknown"), "off");
+	assert.equal(stickyBlur("unknown", "unknown"), "unknown");
+	assert.equal(stickyBlur("unavailable", "unknown"), "unknown");
+	assert.equal(stickyBlur("on", "off"), "off");
+	assert.equal(stickyBlur("off", "on"), "on");
+	assert.equal(stickyBlur("on", "unavailable"), "unavailable", "a meeting that ends clears the remembered state");
 });

@@ -9,11 +9,7 @@ import streamDeck, {
 	type WillDisappearEvent,
 } from "@elgato/streamdeck";
 
-import {
-	HelperExecutionError,
-	type TeamsCommand,
-	type TeamsState,
-} from "../helper-runner";
+import { type BlurState, HelperExecutionError, stickyBlur, type TeamsCommand, type TeamsState } from "../helper-runner";
 import { HoldGate } from "../hold-gate";
 import { LEAVE_HOLD_MS, LeaveController } from "../leave-controller";
 import { commandCoordinator, operationLock, persistentControls } from "../teams-services";
@@ -43,6 +39,7 @@ function stateIndex(field: StateField, value: string): State | undefined {
 class StateSynchronizer {
 	private readonly visible = new Map<StateField, Map<string, KeyAction>>();
 	private refreshPromise: Promise<void> | undefined;
+	private blur: BlurState = "unknown";
 	latest: TeamsState | undefined;
 
 	constructor() {
@@ -93,7 +90,9 @@ class StateSynchronizer {
 		return this.refreshPromise;
 	}
 
-	async apply(result: TeamsState): Promise<void> {
+	async apply(reported: TeamsState): Promise<void> {
+		this.blur = stickyBlur(this.blur, reported.backgroundBlur);
+		const result = { ...reported, backgroundBlur: this.blur };
 		this.latest = result;
 		const updates: Promise<unknown>[] = [];
 		for (const [field, actions] of this.visible) {

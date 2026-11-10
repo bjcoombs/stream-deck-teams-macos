@@ -11,6 +11,7 @@ export const TEAMS_COMMANDS = [
 	"camera-off",
 	"blur-on",
 	"blur-off",
+	"blur-toggle",
 	"hand-raise",
 	"hand-lower",
 	"leave",
@@ -31,6 +32,15 @@ export type TeamsState = {
 	backgroundBlur: BlurState;
 	hand: HandState;
 };
+
+/**
+ * Teams exposes the selected background only while its video effects panel is
+ * open, so a closed panel reads as unknown. Keep the last confirmed blur state
+ * until Teams reports a real one or the meeting ends.
+ */
+export function stickyBlur(previous: BlurState, reported: BlurState): BlurState {
+	return reported === "unknown" && (previous === "on" || previous === "off") ? previous : reported;
+}
 
 export type TeamsCommandResult = TeamsState & {
 	command: TeamsCommand;

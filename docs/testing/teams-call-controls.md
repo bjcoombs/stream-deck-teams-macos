@@ -36,6 +36,8 @@ Use a disposable meeting. Keep a second participant or device connected for reac
 | Background Blur on from off | Teams selects standard blur and the key shows blur on | Not run |
 | Background Blur off from on | Teams selects no effect and the key shows blur off | Not run |
 | Background Blur with the effects panel closed and no camera | The key shows unknown or unavailable and a press alerts without changing Teams | Not run |
+| `blur-toggle` from the terminal with the panel closed, four times in a row | Each run opens the panel, flips blur (on, off, on, off), closes the panel and exits 0 | Passed 10 Nov 2026, Teams 2 on macOS 27 |
+| Background Blur key press with the panel closed | Teams flips blur, the panel closes and the key shows the new state | Not run |
 | Background Blur completes inside the 8 second one-shot timeout | The press confirms without a helper timeout, including on first open of the effects panel | Not run |
 | Push to Talk held while muted | Teams unmutes while held and mutes on release; the key shows Talking, then Muted | Not run |
 | Push to Talk tapped quickly while muted | Teams ends muted; the release mute waits for the unmute instead of meeting the busy lock | Not run |
