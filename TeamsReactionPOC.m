@@ -1090,8 +1090,8 @@ static int PerformLeave(void) {
     }
     BOOL ambiguous = NO;
     // The leave-while-sharing dialogue's own Leave wins over the toolbar's.
-    AXNode *leave = LeaveDialogButton(initialScan[@"elements"], @"leave")
-        ?: BestUniqueNode(initialScan[@"elements"], ^NSInteger(AXNode *node) { return LeaveScore(node); }, &ambiguous);
+    AXNode *dialogueLeave = LeaveDialogButton(initialScan[@"elements"], @"leave");
+    AXNode *leave = dialogueLeave ?: BestUniqueNode(initialScan[@"elements"], ^NSInteger(AXNode *node) { return LeaveScore(node); }, &ambiguous);
     if (ambiguous) {
         WriteJSON(ResultForScan(initialScan, @"leave", NO));
         fprintf(stderr, "More than one equally plausible Leave control was exposed.\n");
@@ -1121,8 +1121,14 @@ static int PerformLeave(void) {
             WriteJSON(ResultForScan(currentScan, @"leave", YES));
             return 0;
         }
+        // The toolbar Leave opened the leave-while-sharing dialogue: hand back now so a tap can answer Stay.
+        if (!dialogueLeave && LeaveDialogButton(currentScan[@"elements"], @"leave")) break;
     } while (deadline.timeIntervalSinceNow > 0);
     WriteJSON(ResultForScan(currentScan, @"leave", YES));
+    if (!dialogueLeave && LeaveDialogButton(currentScan[@"elements"], @"leave")) {
+        fprintf(stderr, "Teams is asking to confirm leaving while sharing.\n");
+        return 15;
+    }
     fprintf(stderr, "Teams accepted Leave, but meeting controls were still present.\n");
     return 13;
 }

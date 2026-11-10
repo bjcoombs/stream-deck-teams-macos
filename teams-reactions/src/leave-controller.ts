@@ -5,6 +5,14 @@
  */
 import type { HoldGate } from "./hold-gate";
 
+/** Helper exit code when the toolbar Leave opened the Teams leave-while-sharing dialogue. */
+export const LEAVE_CONFIRMATION_EXIT_CODE = 15;
+
+/** Matches the helper error for that exit code without importing the helper runner, so tests load this module alone. */
+function asksToConfirm(error: unknown): boolean {
+	return typeof error === "object" && error !== null && "exitCode" in error && error.exitCode === LEAVE_CONFIRMATION_EXIT_CODE;
+}
+
 /** Leave runs only after the key has been held this long. A tap never leaves. */
 export const LEAVE_HOLD_MS = 1_500;
 export const LEAVE_ARMED_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><rect width="144" height="144" rx="22" fill="#b3261e"/><text x="72" y="66" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" font-weight="700" fill="#ffffff">HOLD</text><text x="72" y="104" text-anchor="middle" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="#ffffff">TO LEAVE</text></svg>`;
@@ -92,11 +100,19 @@ export class LeaveController {
 
 	private async leave(key: LeaveKey): Promise<void> {
 		await this.safe(() => key.setImage(), "restore the Leave key image");
-		let status: "completed" | "busy";
+		let status: "completed" | "busy" | "confirm";
 		try {
 			({ status } = await this.execute());
 		} catch (error) {
-			this.logger.reportError("Teams command leave", error);
+			if (!asksToConfirm(error)) {
+				this.logger.reportError("Teams command leave", error);
+				await this.alert(key);
+				return;
+			}
+			status = "confirm";
+		}
+		if (status === "confirm") {
+			this.logger.info("Teams is asking to confirm leaving while sharing; hold again to leave or tap to stay.");
 			await this.alert(key);
 			return;
 		}
@@ -117,6 +133,7 @@ export class LeaveController {
 			this.logger.reportError("Teams command leave-stay", error);
 			return false;
 		}
+		if (outcome === "busy") this.logger.warn("Could not press Stay because another Teams operation is running.");
 		if (outcome !== "stayed") return false;
 		this.logger.info("Stayed in the meeting: pressed Stay in the Teams leave-while-sharing dialogue.");
 		await this.safe(() => key.showOk(), "show the Stay confirmation");

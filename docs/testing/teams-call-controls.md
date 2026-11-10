@@ -138,13 +138,15 @@ Since version `0.2.0.23` the **Share Screen** key runs `share-toggle`. When not 
 
 ## Leave while sharing
 
-Since version `0.2.0.24` the **Leave Call** key answers the dialogue Teams shows when you leave while sharing ("You’re currently sharing. Are you sure you want to leave?"). A hold presses the dialogue's Leave, preferred over the toolbar Leave. A tap runs `leave-stay`, which presses only the dialogue's own Stay, and only while the last status showed sharing. Without the dialogue a tap presses nothing in Teams.
+Since version `0.2.0.24` the **Leave Call** key answers the dialogue Teams shows when you leave while sharing ("You’re currently sharing. Are you sure you want to leave?"). A hold presses the dialogue's Leave, preferred over the toolbar Leave. A tap runs `leave-stay`, which presses only the dialogue's own Stay, and only while the last status showed sharing. Without the dialogue a tap presses nothing in Teams. Since version `0.2.0.25` a hold that makes Teams show the dialogue returns as soon as it appears (helper exit 15), so the next tap is not refused as busy.
 
 | Case | Expected result | Result |
 |---|---|---|
 | Share, click Leave in Teams, then tap the Leave Call key | Teams presses Stay; the dialogue closes, sharing continues and the key shows a check mark | Not run |
 | Share, click Leave in Teams, then hold the Leave Call key for 1.5 seconds | Teams presses the dialogue's Leave; the local participant leaves and the meeting continues for others | Not run |
-| Share, then hold the Leave Call key with no dialogue open | Teams shows the leave-while-sharing dialogue or leaves, as clicking the toolbar Leave would; record which | Not run |
+| Share, then hold the Leave Call key with no dialogue open | Teams shows the leave-while-sharing dialogue; within about a second the key shows one yellow alert and the log says Teams is asking to confirm, with no error | Not run |
+| After that alert, tap the Leave Call key once | The first tap presses Stay; no second tap is needed | Not run |
+| After that alert, hold the Leave Call key again | The dialogue's Leave is pressed and the local participant leaves | Not run |
 | Tap the Leave Call key while sharing with no dialogue open | Nothing changes in Teams; the key shows the yellow cancel alert | Not run |
 | Tap the Leave Call key while not sharing | No helper command runs; the key shows the yellow cancel alert | Not run |
 | Dialogue open with the meeting toolbar also visible, then hold | The dialogue's Leave is pressed, never an ambiguity alert | Not run |

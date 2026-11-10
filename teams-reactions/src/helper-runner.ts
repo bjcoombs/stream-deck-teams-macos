@@ -128,6 +128,7 @@ function safeDiagnostic(exitCode: number | null, spawnCode: string | null, timed
 		12: "The selected Teams control could not be invoked.",
 		13: "Teams accepted the action, but the requested state was not confirmed.",
 		14: "The requested Teams video effect is unavailable.",
+		15: "Teams is asking to confirm leaving while sharing.",
 		64: "The helper rejected its command arguments.",
 	};
 	if (exitCode !== null && diagnostics[exitCode]) return diagnostics[exitCode];
