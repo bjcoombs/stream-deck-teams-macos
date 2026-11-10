@@ -98,7 +98,7 @@ Normal command results are one JSON object on standard output. Diagnostics go to
 
 The persistent protocol is documented in [Architecture](architecture.md#persistent-protocol).
 
-The native helper provides `blur-on` and `blur-off`. The packaged plugin exposes them through the Background Blur key, which runs them on the one-shot helper path because serve mode does not accept them. Live behaviour is unverified; see `docs/testing/teams-call-controls.md`.
+The native helper provides `blur-on`, `blur-off` and `blur-toggle`. Teams exposes the selected background only while its video effects panel is open, as `AXMenuItem` options whose `AXValue` is 1 when chosen, so status reports blur as unknown with the panel closed. `blur-toggle` opens the panel with Open video options, reads the selection, picks the other option and closes the panel with Escape. The Background Blur key sends `blur-toggle` on a normal press and `blur-on` or `blur-off` inside a multi-action, all on the one-shot helper path because serve mode does not accept them. The key keeps showing the last state it confirmed while the panel is closed, so a change made in the Teams window is not reflected until the next press.
 
 ## Keyboard shortcut fallback
 
