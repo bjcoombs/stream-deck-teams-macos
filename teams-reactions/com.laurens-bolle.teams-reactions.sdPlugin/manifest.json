@@ -1,9 +1,27 @@
 {
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"Name": "Teams Meeting Controls",
-	"Version": "0.2.0.15",
+	"Version": "0.2.0.17",
 	"Author": "Laurens Bolle",
 	"Actions": [
+		{
+			"Name": "Reaction",
+			"UUID": "com.laurens-bolle.teams-reactions.reaction",
+			"Icon": "imgs/actions/like/icon",
+			"Tooltip": "Send the reaction chosen in the key settings. Hold the key for a short reaction wave.",
+			"PropertyInspectorPath": "ui/reaction.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"DisableAutomaticStates": true,
+			"States": [
+				{
+					"Image": "imgs/actions/like/key",
+					"Title": "Reaction",
+					"ShowTitle": false
+				}
+			]
+		},
 		{
 			"Name": "Like",
 			"UUID": "com.laurens-bolle.teams-reactions.like",
@@ -19,7 +37,8 @@
 					"Title": "Like",
 					"ShowTitle": false
 				}
-			]
+			],
+			"VisibleInActionsList": false
 		},
 		{
 			"Name": "Love",
@@ -36,7 +55,8 @@
 					"Title": "Love",
 					"ShowTitle": false
 				}
-			]
+			],
+			"VisibleInActionsList": false
 		},
 		{
 			"Name": "Applause",
@@ -53,7 +73,8 @@
 					"Title": "Applause",
 					"ShowTitle": false
 				}
-			]
+			],
+			"VisibleInActionsList": false
 		},
 		{
 			"Name": "Laugh",
@@ -70,7 +91,8 @@
 					"Title": "Laugh",
 					"ShowTitle": false
 				}
-			]
+			],
+			"VisibleInActionsList": false
 		},
 		{
 			"Name": "Surprise",
@@ -87,7 +109,8 @@
 					"Title": "Surprise",
 					"ShowTitle": false
 				}
-			]
+			],
+			"VisibleInActionsList": false
 		},
 		{
 			"Name": "Mute",

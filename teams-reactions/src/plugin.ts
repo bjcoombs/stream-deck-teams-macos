@@ -6,6 +6,7 @@ import {
 	LaughAction,
 	LikeAction,
 	LoveAction,
+	ReactionPickerAction,
 	SurpriseAction,
 } from "./actions/reactions";
 import {
@@ -22,6 +23,7 @@ import { persistentControls, reactionBurstCoordinator } from "./teams-services";
 
 streamDeck.logger.setLevel("info");
 
+streamDeck.actions.registerAction(new ReactionPickerAction());
 streamDeck.actions.registerAction(new LikeAction());
 streamDeck.actions.registerAction(new LoveAction());
 streamDeck.actions.registerAction(new ApplauseAction());

@@ -64,3 +64,11 @@ test("Push to Talk logic stays in its SDK-free controller", async () => {
 	assert.match(text, /pushToTalkController\.keyDown\(/, "PushToTalkAction must delegate key-down to the controller");
 	assert.match(text, /pushToTalkController\.keyUp\(/, "PushToTalkAction must delegate key-up to the controller");
 });
+
+test("reaction keys share the SDK-free reaction key controller", async () => {
+	const controller = await fs.readFile(path.join(pluginRoot, "src", "reaction-key.ts"), "utf8");
+	assert.doesNotMatch(controller, /@elgato\/streamdeck/, "reaction-key.ts must stay free of the Stream Deck SDK so tests can load it");
+	const text = await fs.readFile(path.join(pluginRoot, "src", "actions", "reactions.ts"), "utf8");
+	assert.match(text, /reactionKeyController\.keyDown\(/, "reaction actions must delegate key-down to the controller");
+	assert.equal(text.match(/reactionBurstCoordinator\.start\(/g)?.length, 1, "only the controller wiring may start a reaction wave");
+});

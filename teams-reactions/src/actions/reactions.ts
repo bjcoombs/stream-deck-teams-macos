@@ -1,16 +1,48 @@
 import streamDeck, {
 	action,
-	type KeyAction,
+	type DidReceiveSettingsEvent,
 	type KeyDownEvent,
 	type KeyUpEvent,
 	SingletonAction,
+	type WillAppearEvent,
 	type WillDisappearEvent,
 } from "@elgato/streamdeck";
 
-import { HelperExecutionError, type BurstResult, type Reaction } from "../helper-runner";
+import type { Reaction } from "../helper-runner";
+import { ReactionKeyController, reactionFromSettings, reactionKeyImage } from "../reaction-key";
 import { reactionBurstCoordinator, reactionCoordinator } from "../teams-services";
+import { logHelperError } from "./call-controls";
 
-abstract class ReactionAction extends SingletonAction {
+const reactionKeyController = new ReactionKeyController({
+	startBurst: (id, reaction) => reactionBurstCoordinator.start(id, reaction),
+	stopBurst: id => reactionBurstCoordinator.stop(id),
+	sendOnce: reaction => reactionCoordinator.execute(reaction),
+}, {
+	info: message => streamDeck.logger.info(message),
+	warn: message => streamDeck.logger.warn(message),
+	reportError: logHelperError,
+});
+
+/** Shared key handling. Subclasses decide which reaction a press sends. */
+abstract class ReactionKeyAction extends SingletonAction {
+	/** Read on every press: a SingletonAction serves every key with its UUID. */
+	protected abstract reactionFor(ev: KeyDownEvent): Reaction;
+
+	override onKeyDown(ev: KeyDownEvent): Promise<void> {
+		return reactionKeyController.keyDown(ev.action, this.reactionFor(ev), ev.payload.isInMultiAction);
+	}
+
+	override onKeyUp(ev: KeyUpEvent): void {
+		reactionKeyController.release(ev.action.id);
+	}
+
+	override onWillDisappear(ev: WillDisappearEvent): void {
+		reactionKeyController.release(ev.action.id);
+	}
+}
+
+/** A key that always sends one reaction. Hidden from the action list; kept so existing keys work. */
+abstract class FixedReactionAction extends ReactionKeyAction {
 	private readonly reaction: Reaction;
 
 	protected constructor(reaction: Reaction) {
@@ -18,95 +50,57 @@ abstract class ReactionAction extends SingletonAction {
 		this.reaction = reaction;
 	}
 
-	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-		if (ev.payload.isInMultiAction) {
-			await this.sendSingleReaction(ev);
-			return;
-		}
+	protected override reactionFor(): Reaction {
+		return this.reaction;
+	}
+}
 
+/** One key whose Property Inspector chooses the reaction; the key image follows the choice. */
+@action({ UUID: "com.laurens-bolle.teams-reactions.reaction" })
+export class ReactionPickerAction extends ReactionKeyAction {
+	protected override reactionFor(ev: KeyDownEvent): Reaction {
+		return reactionFromSettings(ev.payload.settings);
+	}
+
+	override onWillAppear(ev: WillAppearEvent): Promise<void> {
+		return this.showReaction(ev);
+	}
+
+	override onDidReceiveSettings(ev: DidReceiveSettingsEvent): Promise<void> {
+		return this.showReaction(ev);
+	}
+
+	private async showReaction(ev: WillAppearEvent | DidReceiveSettingsEvent): Promise<void> {
+		if (!ev.action.isKey()) return;
 		try {
-			const started = reactionBurstCoordinator.start(ev.action.id, this.reaction);
-			if (started.status === "busy") {
-				streamDeck.logger.warn(`Ignored ${this.reaction} because another Teams operation is running.`);
-				await ev.action.showAlert();
-				return;
-			}
-			void this.reportBurst(started.completion, ev.action);
-		} catch (error) {
-			this.logFailure(`Teams reaction burst ${this.reaction}`, error);
-			await ev.action.showAlert();
-		}
-	}
-
-	override onKeyUp(ev: KeyUpEvent): void {
-		reactionBurstCoordinator.stop(ev.action.id);
-	}
-
-	override onWillDisappear(ev: WillDisappearEvent): void {
-		reactionBurstCoordinator.stop(ev.action.id);
-	}
-
-	private async sendSingleReaction(ev: KeyDownEvent): Promise<void> {
-		try {
-			const execution = await reactionCoordinator.execute(this.reaction);
-			if (execution.status === "busy") {
-				streamDeck.logger.warn(`Ignored ${this.reaction} because another Teams operation is running.`);
-				await ev.action.showAlert();
-				return;
-			}
-			streamDeck.logger.info(`Sent one Teams reaction command: ${this.reaction}.`);
-			await ev.action.showOk();
-		} catch (error) {
-			this.logFailure(`Teams reaction ${this.reaction}`, error);
-			await ev.action.showAlert();
-		}
-	}
-
-	private async reportBurst(completion: Promise<BurstResult>, actionInstance: KeyAction): Promise<void> {
-		try {
-			const result = await completion;
-			streamDeck.logger.info(
-				`Teams reaction burst ${result.reaction}: attempted=${result.attempted}, accepted=${result.accessibilityAccepted}, elapsedMs=${result.elapsedMs}, stop=${result.stopReason}.`,
-			);
-			if (result.accessibilityAccepted > 0) await actionInstance.showOk();
-			else await actionInstance.showAlert();
-		} catch (error) {
-			this.logFailure(`Teams reaction burst ${this.reaction}`, error);
-			await actionInstance.showAlert();
-		}
-	}
-
-	private logFailure(operation: string, error: unknown): void {
-		if (error instanceof HelperExecutionError) {
-			const exitCode = error.exitCode === null ? "unavailable" : String(error.exitCode);
-			streamDeck.logger.error(`${operation} failed (exit code ${exitCode}): ${error.diagnostic}`);
-		} else {
-			streamDeck.logger.error(`${operation} failed with an unexpected plugin error.`);
+			await ev.action.setImage(reactionKeyImage(reactionFromSettings(ev.payload.settings)));
+		} catch {
+			streamDeck.logger.warn("Could not update the Reaction key image.");
 		}
 	}
 }
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.like" })
-export class LikeAction extends ReactionAction {
+export class LikeAction extends FixedReactionAction {
 	constructor() { super("like"); }
 }
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.love" })
-export class LoveAction extends ReactionAction {
+export class LoveAction extends FixedReactionAction {
 	constructor() { super("love"); }
 }
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.applause" })
-export class ApplauseAction extends ReactionAction {
+export class ApplauseAction extends FixedReactionAction {
 	constructor() { super("applause"); }
 }
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.laugh" })
-export class LaughAction extends ReactionAction {
+export class LaughAction extends FixedReactionAction {
 	constructor() { super("laugh"); }
 }
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.surprise" })
-export class SurpriseAction extends ReactionAction {
+export class SurpriseAction extends FixedReactionAction {
 	constructor() { super("surprise"); }
 }

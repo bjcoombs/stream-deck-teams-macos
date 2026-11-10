@@ -106,6 +106,22 @@ Also verify:
 - Reactions disabled by the organizer produce one clear alert.
 - Ending the meeting stops without an orphaned helper or popover.
 
+## Reaction picker
+
+The **Reaction** key sends whichever reaction its Property Inspector selects. It shares the press path of the hidden fixed reaction keys, so the tap and hold cases above apply to it unchanged.
+
+| Case | Expected result | Result |
+|---|---|---|
+| Add a new Reaction key | The Property Inspector shows Like selected and the key shows the Like image | Not run |
+| Select each of Love, Applause, Laugh, Surprised | The key image changes to that reaction without reopening the profile | Not run |
+| Tap the key after each selection | Teams sends a reaction attempt for the selected reaction only | Not run |
+| Hold the key with Love selected | A reaction wave of Love runs and stops on release, as for the fixed Love key | Not run |
+| Two Reaction keys set to different reactions | Each key sends its own reaction and shows its own image | Not run |
+| Switch profile away and back | The key keeps its selection and image | Not run |
+| Restart Stream Deck | The key keeps its selection and image | Not run |
+| Reaction key inside a Multi Action | One reaction attempt of the selected reaction | Not run |
+| Existing fixed reaction keys after the update | They still send their reaction; the fixed actions no longer appear in the action list | Not run |
+
 ## Compatibility and privacy
 
 | Case | Expected result | Result |
