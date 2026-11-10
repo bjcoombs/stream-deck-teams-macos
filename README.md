@@ -50,6 +50,9 @@ states have distinct icons. A green check confirms the requested state, or that
 Accessibility accepted a reaction. A yellow alert means the control is unavailable,
 ambiguous, busy, or failed.
 
+- The **Reaction** key sends Like, Love, Applause, Laugh, or Surprised. Choose
+  the reaction under **Emoji Reactions** in the key settings; the key image
+  follows the choice. New keys default to Like.
 - Tap a reaction key to send once.
 - Hold it to repeat at 7 attempts per second, starting after about 300 ms.
 - Release to stop. Each hold is limited to five seconds, including picker setup.
@@ -64,6 +67,12 @@ ambiguous, busy, or failed.
   state it set and a question mark until the first press in a meeting.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
+
+Version `0.2.0.19` replaces the five separate reaction actions with the single
+**Reaction** action. The old Like, Love, Applause, Laugh, and Surprise actions
+are hidden from the action list but stay installed, so keys already on a profile
+keep working unchanged. To move one to the new action, add a **Reaction** key and
+choose the same reaction.
 
 Reaction acceptance does not prove delivery to another participant. Test **Leave
 Call**, **Push to Talk**, and **Background Blur** in a disposable meeting before

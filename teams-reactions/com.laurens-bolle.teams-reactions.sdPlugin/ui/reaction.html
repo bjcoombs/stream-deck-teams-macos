@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Reaction settings</title>
+		<style>
+			body {
+				margin: 0;
+				padding: 8px 12px;
+				background: #2d2d2d;
+				color: #d8d8d8;
+				font: 9pt -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			}
+			fieldset {
+				display: flex;
+				gap: 10px;
+				margin: 0;
+				padding: 0;
+				border: 0;
+			}
+			legend {
+				float: left;
+				width: 92px;
+				padding: 0;
+				color: #969696;
+				text-align: right;
+			}
+			.options {
+				display: grid;
+				gap: 6px;
+			}
+			label {
+				display: flex;
+				align-items: center;
+				gap: 6px;
+				cursor: pointer;
+			}
+			label img {
+				flex: none;
+			}
+			p {
+				margin: 12px 0 0 102px;
+				color: #969696;
+			}
+		</style>
+	</head>
+	<body>
+		<form id="settings">
+			<fieldset>
+				<legend>Emoji Reactions</legend>
+				<div class="options">
+					<label><input type="radio" name="reaction" value="like" checked /><img src="../imgs/actions/like/key.png" width="24" height="24" alt="" /> Like</label>
+					<label><input type="radio" name="reaction" value="love" /><img src="../imgs/actions/love/key.png" width="24" height="24" alt="" /> Love</label>
+					<label><input type="radio" name="reaction" value="applause" /><img src="../imgs/actions/applause/key.png" width="24" height="24" alt="" /> Applause</label>
+					<label><input type="radio" name="reaction" value="laugh" /><img src="../imgs/actions/laugh/key.png" width="24" height="24" alt="" /> Laugh</label>
+					<label><input type="radio" name="reaction" value="surprise" /><img src="../imgs/actions/surprise/key.png" width="24" height="24" alt="" /> Surprised</label>
+				</div>
+			</fieldset>
+			<p>Tap to send once. Hold for a reaction wave. The key shows the chosen reaction.</p>
+		</form>
+		<script>
+			"use strict";
+			const DEFAULT_REACTION = "like";
+			const form = document.getElementById("settings");
+			let socket;
+			let context;
+
+			/** Checks the radio for a reaction, or Like when the reaction is missing or unknown. */
+			function select(reaction) {
+				const input = form.querySelector(`input[name="reaction"][value="${CSS.escape(String(reaction))}"]`)
+					?? form.querySelector(`input[name="reaction"][value="${DEFAULT_REACTION}"]`);
+				input.checked = true;
+			}
+
+			function send(event, payload) {
+				if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ event, context, payload }));
+			}
+
+			form.addEventListener("change", () => {
+				send("setSettings", { reaction: form.elements.reaction.value });
+			});
+
+			// Stream Deck calls this global when the Property Inspector opens.
+			function connectElgatoStreamDeckSocket(port, uuid, registerEvent, _info, actionInfo) {
+				context = uuid;
+				let settings = {};
+				try {
+					settings = JSON.parse(actionInfo)?.payload?.settings ?? {};
+				} catch {
+					settings = {};
+				}
+				select(settings.reaction);
+				socket = new WebSocket(`ws://127.0.0.1:${port}`);
+				socket.addEventListener("open", () => {
+					socket.send(JSON.stringify({ event: registerEvent, uuid }));
+					// Store the shown choice when the settings hold none or an unknown one.
+					const shown = form.elements.reaction.value;
+					if (settings.reaction !== shown) send("setSettings", { reaction: shown });
+				});
+				socket.addEventListener("message", message => {
+					let data;
+					try {
+						data = JSON.parse(message.data);
+					} catch {
+						return;
+					}
+					if (data.event === "didReceiveSettings") select(data.payload?.settings?.reaction);
+				});
+			}
+			window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+		</script>
+	</body>
+</html>
