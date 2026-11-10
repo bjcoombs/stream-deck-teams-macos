@@ -18,14 +18,14 @@ if ! command -v magick >/dev/null 2>&1; then
   exit 1
 fi
 
-# A key image and its greyed, translucent twin shown while no Teams meeting is active.
+# A key image and its dimmed twin, keeping its colours, shown while no Teams meeting is active.
 render_key() {
   source_svg=$1
   output=$2
   rsvg-convert -w 72 -h 72 -o "$output.png" "$source_svg"
   rsvg-convert -w 144 -h 144 -o "$output@2x.png" "$source_svg"
   for suffix in "" "@2x"; do
-    magick "$output$suffix.png" -colorspace Gray -channel A -evaluate multiply 0.45 +channel \
+    magick "$output$suffix.png" -modulate 100,75 -channel A -evaluate multiply 0.45 +channel \
       -define png:color-type=6 "$output-inactive$suffix.png"
   done
 }
