@@ -2,7 +2,7 @@
 
 Control a Microsoft Teams meeting from your Stream Deck on macOS: mute or unmute,
 hold to talk, toggle the camera or background blur, raise or lower your hand,
-leave the call, and send Like, Love, Applause, Laugh, or Surprise reactions.
+share your screen or stop sharing, leave the call, and send Like, Love, Applause, Laugh, or Surprise reactions.
 
 The plugin uses macOS Accessibility. It needs no Teams credentials, network API,
 or separate companion application.
@@ -44,7 +44,7 @@ lessons learned are in [docs/retros](docs/retros/README.md).
 
 ## Using the controls
 
-Mute, Push to Talk, camera, background blur, and hand keys show the state
+Mute, Push to Talk, camera, background blur, hand, and Share Screen keys show the state
 reported by Teams. Unknown or unavailable
 states have distinct icons. A green check confirms the requested state, or that
 Accessibility accepted a reaction. A yellow alert means the control is unavailable,
@@ -64,6 +64,11 @@ ambiguous, busy, or failed.
   blur state only inside its video effects panel, so each press briefly opens
   that panel, switches the effect and closes it again. The key shows the last
   state it set and a question mark until the first press in a meeting.
+- **Share Screen** opens the Teams share picker when you are not sharing; choose
+  the screen or window with the mouse, and the key turns red once Teams starts
+  sharing. While you are sharing, a press stops sharing. The key uses the meeting
+  toolbar's Share or Stop sharing button, not the floating sharing control bar,
+  and a press while the picker is already open leaves it open.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
 
@@ -86,8 +91,8 @@ keep working unchanged. To move one to the new action, add a **Reaction** key an
 choose the same reaction.
 
 Reaction acceptance does not prove delivery to another participant. Test **Leave
-Call**, **Push to Talk**, and **Background Blur** in a disposable meeting before
-relying on them; neither new key has been tested live yet.
+Call**, **Push to Talk**, **Background Blur**, and **Share Screen** in a disposable
+meeting before relying on them; Share Screen has not been tested live yet.
 
 ## Status
 

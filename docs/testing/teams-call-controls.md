@@ -113,6 +113,29 @@ The **Reaction** key sends whichever reaction its Property Inspector selects. It
 | Reaction key inside a Multi Action | One reaction attempt of the selected reaction | Not run |
 | Existing fixed reaction keys after the update | They still send their reaction; the fixed actions no longer appear in the action list | Not run |
 
+## Share Screen
+
+Since version `0.2.0.23` the **Share Screen** key runs `share-toggle`. When not sharing it presses the meeting toolbar Share button and leaves the Teams share picker open for the user. When sharing it presses the toolbar Stop sharing button, not the one in the Sharing control bar window. Status reports `screenShare` as `on`, `off`, or `unavailable`.
+
+| Case | Expected result | Result |
+|---|---|---|
+| Press while not sharing | The Teams share picker opens and stays open; the key shows a check mark and the not-sharing image | Not run |
+| Choose a screen in the picker after the press | Teams starts sharing; the key shows the red sharing image within 2 seconds without another press | Not run |
+| Press while sharing a screen | Teams stops sharing; the Sharing control bar closes; the key returns to the not-sharing image | Not run |
+| Press while sharing with the Sharing control bar focused | Teams stops sharing through the toolbar button; no ambiguity alert | Not run |
+| Press while sharing with the meeting window minimized | Teams stops sharing, using the control bar button if the toolbar is hidden | Not run |
+| Press while the share picker is already open | Nothing changes; the picker stays open | Not run |
+| Leave the share picker open for 10 seconds | No key dims; the Share Screen key shows not sharing | Not run |
+| Close the share picker without choosing | The key stays on the not-sharing image | Not run |
+| Start sharing from Teams, not the key | The key turns to the sharing image within 2 seconds | Not run |
+| Stop sharing from the Sharing control bar | The key returns to the not-sharing image within 2 seconds | Not run |
+| Share a window instead of a screen | The key shows sharing; a second press stops sharing | Not run |
+| Press Share Screen while another Teams operation runs | One yellow alert; Teams does not change | Not run |
+| No meeting | The key dims and a press does nothing | Not run |
+| `share-toggle` from the terminal while not sharing, then while sharing | First run exits 0 with the picker open; second run exits 0 with `screenShare` off | Not run |
+| `inspect-controls` while sharing | Lists both Stop sharing buttons as `share` controls with state `on`; `screenShare` reads `on` | Not run |
+| Dutch, German, French, or Spanish Teams UI | The localized Share and Stop sharing labels are recognised | Not run |
+
 ## Inactive keys without a meeting
 
 Since version `0.2.0.20` the plugin marks every key inactive and ignores presses while status finds no meeting. Version `0.2.0.21` rechecks status every two seconds while inactive, reads status before ignoring a press, and treats the Share content dialogue as a meeting. Version `0.2.0.22` dims inactive keys and keeps their colours; earlier versions turned them grey. Use a profile with at least one key of every action, including a hidden fixed reaction key from before `0.2.0.19`.
