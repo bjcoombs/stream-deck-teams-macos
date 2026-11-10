@@ -405,16 +405,6 @@ int main(void) {
         Expect(!RefreshedControlsMatch(@[cachedMic], @[freshMic]), @"disappeared actions must trigger rediscovery", &failures);
         Expect(!RefreshedControlsMatch(@[cachedMic], @[]), @"missing cached controls must trigger rediscovery", &failures);
 
-        Expect(BurstDurationLimit == 5.0, @"reaction hold guard must allow five seconds", &failures);
-        Expect(BurstMaximumAttempts >= (NSInteger)ceil(BurstDurationLimit * BurstMaximumRate), @"attempt cap must allow the configured duration at the maximum supported rate", &failures);
-        NSTimeInterval interval = 1.0 / 7.0;
-        Expect(fabs(NextBurstAttemptTime(1.8, 7) - (1.8 + interval)) < 0.000001, @"slow picker setup must not create overdue reaction presses", &failures);
-        Expect(fabs(NextBurstAttemptTime(0.01, 7) - BurstHoldThreshold) < 0.000001, @"fast setup must preserve the tap hold threshold", &failures);
-        NSTimeInterval pressTime = BurstHoldThreshold;
-        for (NSInteger repeat = 0; repeat < 7; repeat += 1) pressTime = NextBurstAttemptTime(pressTime, 7);
-        Expect(fabs(pressTime - (BurstHoldThreshold + 1.0)) < 0.000001, @"seven repeat intervals must span one second", &failures);
-        Expect(NextBurstAttemptTime(2.2, 7) > 2.34, @"a slow press or target recovery must not trigger catch-up presses", &failures);
-
         AXNode *raiseHand = Button(@"Raise your hand", @"", 10);
         AXNode *react = Button(@"React", @"", 10);
         AXNode *selected = BestNode(@[raiseHand, react], ^NSInteger(AXNode *node) {

@@ -10,11 +10,6 @@ static const NSInteger MaxTraversalDepth = 40;
 static const NSInteger MaxVisitedElements = 30000;
 static const NSTimeInterval MenuTimeout = 4.0;
 static const NSTimeInterval VerificationTimeout = 2.0;
-static const NSTimeInterval BurstHoldThreshold = 0.30;
-static const NSTimeInterval BurstDurationLimit = 5.0;
-static const NSInteger BurstDefaultRate = 7;
-static const NSInteger BurstMaximumRate = 10;
-static const NSInteger BurstMaximumAttempts = 50;
 static CFStringRef const AXScrollToVisibleAction = CFSTR("AXScrollToVisible");
 
 @interface AXNode : NSObject
@@ -107,9 +102,7 @@ static void PrintUsage(const char *executablePath) {
     printf("  %s mute|unmute|camera-on|camera-off\n", executable.UTF8String);
     printf("  %s blur-on|blur-off|blur-toggle|hand-raise|hand-lower|share-toggle|leave\n", executable.UTF8String);
     printf("  %s react like|love|applause|laugh|surprise\n", executable.UTF8String);
-    printf("  %s burst like|love|applause|laugh|surprise [rate]\n", executable.UTF8String);
     printf("  %s inspect\n\n", executable.UTF8String);
-    printf("Burst rate defaults to %ld and is capped at %ld attempts per second.\n", (long)BurstDefaultRate, (long)BurstMaximumRate);
     printf("inspect and inspect-controls do not press anything.\n");
 }
 
@@ -1442,87 +1435,6 @@ static int SendReaction(NSDictionary *reaction, NSString *commandName) {
     return 0;
 }
 
-static BOOL BurstStopRequested(void) {
-    char buffer[64];
-    ssize_t count = read(STDIN_FILENO, buffer, sizeof(buffer));
-    if (count == 0 || count > 0) return YES;
-    return errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR;
-}
-
-static BOOL WaitForBurstTime(NSDate *start, NSTimeInterval targetElapsed) {
-    while (-start.timeIntervalSinceNow < targetElapsed) {
-        if (BurstStopRequested()) return NO;
-        NSTimeInterval remaining = targetElapsed + start.timeIntervalSinceNow;
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:MIN(0.01, remaining)]];
-    }
-    return !BurstStopRequested();
-}
-
-static NSTimeInterval NextBurstAttemptTime(NSTimeInterval previousPressTime, NSInteger rate) {
-    return MAX(BurstHoldThreshold, previousPressTime + 1.0 / (NSTimeInterval)rate);
-}
-
-static int BurstReaction(NSDictionary *reaction, NSInteger requestedRate) {
-    NSInteger rate = MAX(1, MIN(BurstMaximumRate, requestedRate));
-    int currentFlags = fcntl(STDIN_FILENO, F_GETFL);
-    if (currentFlags >= 0) fcntl(STDIN_FILENO, F_SETFL, currentFlags | O_NONBLOCK);
-    NSDate *start = [NSDate date];
-    NSInteger attempted = 0;
-    NSInteger accepted = 0;
-    NSString *stopReason = @"error";
-    int exitStatus = 0;
-    ReactionSession *session = nil;
-    int prepareStatus = PrepareReactionSession(reaction, &session);
-    if (prepareStatus != 0) {
-        exitStatus = prepareStatus;
-    } else {
-        attempted = 1;
-        NSTimeInterval firstPressTime = -start.timeIntervalSinceNow;
-        AXError firstError = PressReactionWithRecovery(^AXError { return PressNode(session.target); },
-            ^AXError { return ReacquireReactionTarget(session); },
-            ^BOOL { return -start.timeIntervalSinceNow < BurstDurationLimit; });
-        firstPressTime = -start.timeIntervalSinceNow;
-        if (firstError == kAXErrorSuccess) {
-            accepted = 1;
-            if (!WaitForBurstTime(start, BurstHoldThreshold)) {
-                stopReason = @"key-up";
-            } else {
-                NSTimeInterval nextAttempt = NextBurstAttemptTime(firstPressTime, rate);
-                while (YES) {
-                    NSTimeInterval elapsed = -start.timeIntervalSinceNow;
-                    if (elapsed >= BurstDurationLimit) { stopReason = @"duration-limit"; break; }
-                    if (attempted >= BurstMaximumAttempts) { stopReason = @"count-limit"; break; }
-                    if (!WaitForBurstTime(start, MIN(nextAttempt, BurstDurationLimit))) { stopReason = @"key-up"; break; }
-                    if (-start.timeIntervalSinceNow >= BurstDurationLimit) { stopReason = @"duration-limit"; break; }
-                    NSTimeInterval pressTime = -start.timeIntervalSinceNow;
-                    attempted += 1;
-                    AXError reactionError = PressReactionWithRecovery(^AXError { return PressNode(session.target); },
-                        ^AXError { return ReacquireReactionTarget(session); },
-                        ^BOOL { return !BurstStopRequested() && -start.timeIntervalSinceNow < BurstDurationLimit; });
-                    pressTime = -start.timeIntervalSinceNow;
-                    if (reactionError != kAXErrorSuccess) {
-                        if (BurstStopRequested()) { stopReason = @"key-up"; break; }
-                        if (-start.timeIntervalSinceNow >= BurstDurationLimit) { stopReason = @"duration-limit"; break; }
-                        stopReason = @"selection-error";
-                        exitStatus = 6;
-                        break;
-                    }
-                    accepted += 1;
-                    nextAttempt = NextBurstAttemptTime(pressTime, rate);
-                }
-            }
-        } else {
-            exitStatus = 6;
-        }
-    }
-    NSInteger elapsedMs = (NSInteger)llround((-start.timeIntervalSinceNow) * 1000.0);
-    NSString *reactionName = [reaction[@"name"] lowercaseString] ?: @"unknown";
-    NSString *finalStopReason = stopReason ?: @"error";
-    WriteJSON(@{@"command": @"burst", @"reaction": reactionName, @"attempted": @(attempted), @"accessibilityAccepted": @(accepted), @"elapsedMs": @(elapsedMs), @"stopReason": finalStopReason});
-    if (exitStatus != 0) fprintf(stderr, "The reaction burst stopped because Teams did not accept a reaction control.\n");
-    return exitStatus;
-}
-
 static NSMutableArray *PersistentObservers;
 
 static void PersistentAXChanged(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void *context) {
@@ -1750,15 +1662,14 @@ int main(int argc, const char *argv[]) {
         NSSet<NSString *> *singleArgumentCommands = [NSSet setWithArray:@[@"serve", @"status", @"inspect", @"inspect-controls", @"mute", @"unmute", @"camera-on", @"camera-off", @"blur-on", @"blur-off", @"blur-toggle", @"hand-raise", @"hand-lower", @"share-toggle", @"leave"]];
         BOOL directReaction = ReactionDefinitions()[command] != nil;
         BOOL validArity = (argc == 2 && ([singleArgumentCommands containsObject:command] || directReaction))
-            || (argc == 3 && ([command isEqualToString:@"react"] || [command isEqualToString:@"burst"]))
-            || (argc == 4 && [command isEqualToString:@"burst"]);
+            || (argc == 3 && [command isEqualToString:@"react"]);
         if (!validArity) {
             fprintf(stderr, "Invalid command arguments.\n\n");
             PrintUsage(argv[0]);
             return 64;
         }
         NSDictionary *reaction = nil;
-        if ([command isEqualToString:@"react"] || [command isEqualToString:@"burst"]) {
+        if ([command isEqualToString:@"react"]) {
             NSString *reactionName = [[NSString stringWithUTF8String:argv[2]] lowercaseString];
             reaction = ReactionDefinitions()[reactionName];
             if (!reaction) {
@@ -1780,14 +1691,6 @@ int main(int argc, const char *argv[]) {
             if ([command isEqualToString:@"blur-off"]) return PerformBlur(0);
             if ([command isEqualToString:@"blur-toggle"]) return PerformBlur(-1);
             if ([command isEqualToString:@"react"]) return SendReaction(reaction, @"react");
-            if ([command isEqualToString:@"burst"]) {
-                NSInteger rate = argc == 4 ? [[NSString stringWithUTF8String:argv[3]] integerValue] : BurstDefaultRate;
-                if (rate < 1 || rate > BurstMaximumRate) {
-                    fprintf(stderr, "Burst rate must be between 1 and 10.\n");
-                    return 64;
-                }
-                return BurstReaction(reaction, rate);
-            }
             if (directReaction) return SendReaction(ReactionDefinitions()[command], @"react");
             fprintf(stderr, "Unknown command.\n");
             return 64;

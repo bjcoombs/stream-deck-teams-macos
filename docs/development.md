@@ -91,7 +91,6 @@ Query state or invoke explicit commands:
 ./.build/teams-reaction hand-lower
 ./.build/teams-reaction leave
 ./.build/teams-reaction react love
-./.build/teams-reaction burst love 7   # native only; the plugin no longer uses it
 ```
 
 Normal command results are one JSON object on standard output. Diagnostics go to standard error. `inspect-controls` omits meeting window titles, but its matched labels may still reflect the installed Teams language. Review diagnostic output before sharing it.

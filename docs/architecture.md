@@ -9,7 +9,7 @@ Stream Deck action
     -> JSON result back to Stream Deck
 ```
 
-Each reaction key press runs one bounded one-shot `react` invocation that opens the picker, presses the requested reaction and dismisses the picker. The native helper still has a `burst` command, but the plugin no longer uses it.
+Each reaction key press runs one bounded one-shot `react` invocation that opens the picker, presses the requested reaction and dismisses the picker.
 
 The native helper restricts process discovery to `com.microsoft.teams2` and its child bundle identifiers. Leave selection explicitly rejects end-meeting, end-for-all, decline, and dismiss controls. Equally plausible destructive controls fail as ambiguous instead of choosing one.
 
