@@ -77,89 +77,23 @@ static NSDictionary<NSString *, NSDictionary *> *ReactionDefinitions(void) {
     return values;
 }
 
-static NSArray<NSString *> *LauncherLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"react", @"reaction", @"reactions", @"reageren", @"reactie", @"reacties", @"réagir", @"réaction", @"réactions", @"reagieren", @"reaktion", @"reaktionen", @"reaccionar", @"reacción", @"reacciones"]; });
-    return values;
-}
+// Each label table is built once and shared: scoring reads them for every scanned element.
+#define LABEL_TABLE(name, ...) static NSArray<NSString *> *name(void) { \
+    static NSArray<NSString *> *values; static dispatch_once_t once; \
+    dispatch_once(&once, ^{ values = @[__VA_ARGS__]; }); return values; }
 
-static NSArray<NSString *> *MuteLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"mute", @"mute mic", @"mute microphone", @"dempen", @"microfoon dempen", @"stummschalten", @"mikrofon stummschalten", @"désactiver le micro", @"silenciar", @"silenciar micrófono"]; });
-    return values;
-}
-
-static NSArray<NSString *> *UnmuteLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"unmute", @"unmute mic", @"unmute microphone", @"dempen opheffen", @"microfoon inschakelen", @"stummschaltung aufheben", @"mikrofon einschalten", @"activer le micro", @"reactivar audio", @"activar micrófono"]; });
-    return values;
-}
-
-static NSArray<NSString *> *CameraOffLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"turn camera off", @"stop video", @"camera uitschakelen", @"video stoppen", @"kamera ausschalten", @"désactiver la caméra", @"desactivar la cámara"]; });
-    return values;
-}
-
-static NSArray<NSString *> *CameraOnLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"turn camera on", @"start video", @"camera inschakelen", @"video starten", @"kamera einschalten", @"activer la caméra", @"activar la cámara"]; });
-    return values;
-}
-
-static NSArray<NSString *> *RaiseHandLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"raise your hand", @"raise hand", @"hand opsteken", @"steek uw hand op", @"hand heben", @"lever la main", @"levantar la mano"]; });
-    return values;
-}
-
-static NSArray<NSString *> *LowerHandLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"lower your hand", @"lower hand", @"hand omlaag", @"uw hand omlaag doen", @"hand senken", @"baisser la main", @"bajar la mano"]; });
-    return values;
-}
-
-static NSArray<NSString *> *LeaveLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"leave", @"leave call", @"hang up", @"verlaten", @"gesprek verlaten", @"auflegen", @"besprechung verlassen", @"quitter", @"quitter l'appel", @"salir", @"salir de la llamada"]; });
-    return values;
-}
-
-static NSArray<NSString *> *EffectsLauncherLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"open video options", @"video effects and settings", @"backgrounds and effects", @"effects and avatars", @"video effects", @"achtergronden en effecten", @"video-effecten", @"hintergründe und effekte", @"effets vidéo", @"arrière-plans et effets", @"fondos y efectos", @"efectos de vídeo"]; });
-    return values;
-}
-
-static NSArray<NSString *> *BlurLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"blur", @"standard blur", @"background blur", @"vervagen", @"achtergrond vervagen", @"weichzeichnen", @"hintergrund weichzeichnen", @"flou", @"flouter l’arrière-plan", @"desenfocar", @"desenfocar fondo"]; });
-    return values;
-}
-
-static NSArray<NSString *> *NoEffectLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"none", @"no effect", @"no background", @"no background effect", @"geen", @"geen effect", @"zonder achtergrond", @"keine", @"kein effekt", @"aucun", @"aucun effet", @"ninguno", @"sin efecto"]; });
-    return values;
-}
-
-static NSArray<NSString *> *ApplyLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"apply", @"apply and turn on video", @"toepassen", @"toepassen en video inschakelen", @"anwenden", @"appliquer", @"aplicar"]; });
-    return values;
-}
+LABEL_TABLE(LauncherLabels, @"react", @"reaction", @"reactions", @"reageren", @"reactie", @"reacties", @"réagir", @"réaction", @"réactions", @"reagieren", @"reaktion", @"reaktionen", @"reaccionar", @"reacción", @"reacciones")
+LABEL_TABLE(MuteLabels, @"mute", @"mute mic", @"mute microphone", @"dempen", @"microfoon dempen", @"stummschalten", @"mikrofon stummschalten", @"désactiver le micro", @"silenciar", @"silenciar micrófono")
+LABEL_TABLE(UnmuteLabels, @"unmute", @"unmute mic", @"unmute microphone", @"dempen opheffen", @"microfoon inschakelen", @"stummschaltung aufheben", @"mikrofon einschalten", @"activer le micro", @"reactivar audio", @"activar micrófono")
+LABEL_TABLE(CameraOffLabels, @"turn camera off", @"stop video", @"camera uitschakelen", @"video stoppen", @"kamera ausschalten", @"désactiver la caméra", @"desactivar la cámara")
+LABEL_TABLE(CameraOnLabels, @"turn camera on", @"start video", @"camera inschakelen", @"video starten", @"kamera einschalten", @"activer la caméra", @"activar la cámara")
+LABEL_TABLE(RaiseHandLabels, @"raise your hand", @"raise hand", @"hand opsteken", @"steek uw hand op", @"hand heben", @"lever la main", @"levantar la mano")
+LABEL_TABLE(LowerHandLabels, @"lower your hand", @"lower hand", @"hand omlaag", @"uw hand omlaag doen", @"hand senken", @"baisser la main", @"bajar la mano")
+LABEL_TABLE(LeaveLabels, @"leave", @"leave call", @"hang up", @"verlaten", @"gesprek verlaten", @"auflegen", @"besprechung verlassen", @"quitter", @"quitter l'appel", @"salir", @"salir de la llamada")
+LABEL_TABLE(EffectsLauncherLabels, @"open video options", @"video effects and settings", @"backgrounds and effects", @"effects and avatars", @"video effects", @"achtergronden en effecten", @"video-effecten", @"hintergründe und effekte", @"effets vidéo", @"arrière-plans et effets", @"fondos y efectos", @"efectos de vídeo")
+LABEL_TABLE(BlurLabels, @"blur", @"standard blur", @"background blur", @"vervagen", @"achtergrond vervagen", @"weichzeichnen", @"hintergrund weichzeichnen", @"flou", @"flouter l’arrière-plan", @"desenfocar", @"desenfocar fondo")
+LABEL_TABLE(NoEffectLabels, @"none", @"no effect", @"no background", @"no background effect", @"geen", @"geen effect", @"zonder achtergrond", @"keine", @"kein effekt", @"aucun", @"aucun effet", @"ninguno", @"sin efecto")
+LABEL_TABLE(ApplyLabels, @"apply", @"apply and turn on video", @"toepassen", @"toepassen en video inschakelen", @"anwenden", @"appliquer", @"aplicar")
 
 static void PrintUsage(const char *executablePath) {
     NSString *executable = [[NSString stringWithUTF8String:executablePath] lastPathComponent];
