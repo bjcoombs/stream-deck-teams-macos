@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,14 +8,11 @@ import {
 	CommandCoordinator,
 	HelperExecutionError,
 	OperationLock,
-	ReactionBurstCoordinator,
 	stickyBlur,
 	ReactionCoordinator,
-	parseBurstResult,
 	parseTeamsResult,
 	runReactionHelper,
 	runTeamsCommand,
-	startReactionBurst,
 } from "../src/helper-runner.ts";
 
 const STATE_RESULT = {
@@ -83,7 +79,6 @@ test("blocks invalid commands and reactions before launching a process", async (
 
 test("rejects incomplete helper JSON instead of inventing state", () => {
 	assert.throws(() => parseTeamsResult('{"meetingActive":true}'), /incomplete state result/);
-	assert.throws(() => parseBurstResult('{"command":"burst"}'), /incomplete burst result/);
 });
 
 test("maps helper exit codes to privacy-safe diagnostics", async () => {
@@ -147,100 +142,6 @@ test("command coordinator releases the lock after helper failure", async () => {
 	});
 	await assert.rejects(coordinator.execute("status"), /fixture failure/);
 	assert.equal((await coordinator.execute("status")).status, "completed");
-});
-
-class FakeStream extends EventEmitter {}
-
-class FakeChild extends EventEmitter {
-	stdout = new FakeStream();
-	stderr = new FakeStream();
-	stdinEnded = false;
-	killedWith = undefined;
-	stdin = { end: () => { this.stdinEnded = true; } };
-	kill(signal) {
-		this.killedWith = signal;
-		queueMicrotask(() => this.emit("close", null, signal));
-		return true;
-	}
-}
-
-test("burst runner starts one helper and stops it by closing stdin", async () => {
-	const child = new FakeChild();
-	let capturedArgs;
-	const session = startReactionBurst("love", {
-		spawnImpl: (_file, args) => { capturedArgs = args; return child; },
-	});
-	assert.deepEqual(capturedArgs, ["burst", "love"]);
-	session.stop();
-	assert.equal(child.stdinEnded, true);
-	child.stdout.emit("data", JSON.stringify({ command: "burst", reaction: "love", attempted: 1, accessibilityAccepted: 1, elapsedMs: 180, stopReason: "key-up" }));
-	child.emit("close", 0, null);
-	assert.equal((await session.completion).accessibilityAccepted, 1);
-});
-
-test("restores a missing execute bit before starting a reaction burst", async () => {
-	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "teams-reaction-"));
-	const helperPath = path.join(dir, "teams-reaction");
-	await fs.writeFile(helperPath, "fixture", { mode: 0o644 });
-	const child = new FakeChild();
-	const session = startReactionBurst("love", { helperPath, spawnImpl: () => child });
-
-	const mode = (await fs.stat(helperPath)).mode & 0o777;
-	assert.equal(mode & 0o111, 0o111);
-	child.stdout.emit("data", JSON.stringify({ command: "burst", reaction: "love", attempted: 1, accessibilityAccepted: 1, elapsedMs: 180, stopReason: "key-up" }));
-	child.emit("close", 0, null);
-	await session.completion;
-});
-
-test("burst runner contains a missing key-up with a timeout", async () => {
-	const child = new FakeChild();
-	const session = startReactionBurst("like", { timeoutMs: 15, spawnImpl: () => child });
-	await assert.rejects(session.completion, (error) => error instanceof HelperExecutionError && error.timedOut);
-	assert.equal(child.killedWith, "SIGTERM");
-});
-
-test("burst runner still reports a timeout when the helper ignores key-up", async () => {
-	const child = new FakeChild();
-	const session = startReactionBurst("like", { timeoutMs: 15, spawnImpl: () => child });
-	session.stop();
-	await assert.rejects(session.completion, (error) => error instanceof HelperExecutionError && error.timedOut);
-});
-
-test("a hung burst is killed before its lock is released and the next key can run", async () => {
-	const child = new FakeChild();
-	const signals = [];
-	child.kill = (signal) => {
-		signals.push(signal);
-		if (signal === "SIGKILL") queueMicrotask(() => child.emit("close", null, signal));
-		return true;
-	};
-	const lock = new OperationLock();
-	const coordinator = new ReactionBurstCoordinator(lock, () => startReactionBurst("like", { timeoutMs: 10, spawnImpl: () => child }));
-	const started = coordinator.start("key", "like");
-	const verdict = started.completion.then(() => "completed", error => error);
-	await new Promise(resolve => setTimeout(resolve, 30));
-	assert.deepEqual(coordinator.start("other", "love"), { status: "busy" });
-	const result = await Promise.race([verdict, new Promise(resolve => setTimeout(() => resolve("still hung"), 500))]);
-	assert.ok(result instanceof HelperExecutionError && result.timedOut, "the timeout must settle even when SIGTERM is ignored");
-	assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
-	const commands = new CommandCoordinator(lock, async () => STATE_RESULT);
-	assert.equal((await commands.execute("status")).status, "completed");
-});
-
-test("burst coordinator matches key-up by action context and stays exclusive", async () => {
-	let resolveBurst;
-	let stopCount = 0;
-	const completion = new Promise((resolve) => { resolveBurst = resolve; });
-	const coordinator = new ReactionBurstCoordinator(new OperationLock(), () => ({ completion, stop: () => { stopCount += 1; } }));
-	const started = coordinator.start("key-a", "love");
-	assert.equal(started.status, "started");
-	assert.deepEqual(coordinator.start("key-b", "like"), { status: "busy" });
-	coordinator.stop("key-b");
-	assert.equal(stopCount, 0);
-	coordinator.stop("key-a");
-	assert.equal(stopCount, 1);
-	resolveBurst({ command: "burst", reaction: "love", attempted: 1, accessibilityAccepted: 1, elapsedMs: 100, stopReason: "key-up" });
-	await started.completion;
 });
 
 test("stickyBlur keeps the last confirmed blur while the effects panel is closed", () => {

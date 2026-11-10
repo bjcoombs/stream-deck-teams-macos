@@ -1,9 +1,10 @@
 /**
  * Reaction key behavior, free of the Stream Deck SDK so tests can load it directly.
  * The fixed reaction keys and the Reaction picker key share this one press path;
- * they differ only in how they choose the reaction.
+ * they differ only in how they choose the reaction. Teams has no hold-to-repeat
+ * reaction, so every press sends exactly one, whether tapped or held.
  */
-import type { BurstResult, Reaction } from "./helper-runner";
+import type { Reaction } from "./helper-runner";
 
 /** The reaction a picker key sends when its settings name none, or an unknown one. */
 export const DEFAULT_REACTION: Reaction = "like";
@@ -27,14 +28,11 @@ export function reactionKeyImage(reaction: Reaction): string {
 }
 
 export type ReactionKey = {
-	readonly id: string;
 	showOk(): Promise<void>;
 	showAlert(): Promise<void>;
 };
 
 export type ReactionKeyServices = {
-	startBurst(id: string, reaction: Reaction): { status: "busy" } | { status: "started"; completion: Promise<BurstResult> };
-	stopBurst(id: string): void;
 	sendOnce(reaction: Reaction): Promise<{ status: "busy" } | { status: string }>;
 };
 
@@ -53,61 +51,29 @@ export class ReactionKeyController {
 		this.logger = logger;
 	}
 
-	/** Starts a reaction wave, or sends once inside a Multi Action. */
-	async keyDown(key: ReactionKey, reaction: Reaction, isInMultiAction: boolean): Promise<void> {
-		if (isInMultiAction) {
-			await this.sendSingleReaction(key, reaction);
-			return;
-		}
-
-		try {
-			const started = this.services.startBurst(key.id, reaction);
-			if (started.status === "busy") {
-				this.logger.warn(`Ignored ${reaction} because another Teams operation is running.`);
-				await key.showAlert();
-				return;
-			}
-			// The key can be gone by the time the wave ends, so a failed status indicator is only logged.
-			void this.reportBurst(started.completion, key, reaction)
-				.catch(() => this.logger.warn(`Could not show the result of the ${reaction} reaction wave.`));
-		} catch (error) {
-			this.logger.reportError(`Teams reaction burst ${reaction}`, error);
-			await key.showAlert();
-		}
-	}
-
-	/** Ends the key's reaction wave on release or when the key disappears. */
-	release(id: string): void {
-		this.services.stopBurst(id);
-	}
-
-	private async sendSingleReaction(key: ReactionKey, reaction: Reaction): Promise<void> {
+	/** Sends one reaction. A key release does nothing. */
+	async keyDown(key: ReactionKey, reaction: Reaction): Promise<void> {
 		try {
 			const execution = await this.services.sendOnce(reaction);
 			if (execution.status === "busy") {
 				this.logger.warn(`Ignored ${reaction} because another Teams operation is running.`);
-				await key.showAlert();
+				await this.show(key, "showAlert", reaction);
 				return;
 			}
 			this.logger.info(`Sent one Teams reaction command: ${reaction}.`);
-			await key.showOk();
+			await this.show(key, "showOk", reaction);
 		} catch (error) {
 			this.logger.reportError(`Teams reaction ${reaction}`, error);
-			await key.showAlert();
+			await this.show(key, "showAlert", reaction);
 		}
 	}
 
-	private async reportBurst(completion: Promise<BurstResult>, key: ReactionKey, reaction: Reaction): Promise<void> {
+	/** The key can be gone by the time the reaction ends, so a failed indicator is only logged. */
+	private async show(key: ReactionKey, indicator: "showOk" | "showAlert", reaction: Reaction): Promise<void> {
 		try {
-			const result = await completion;
-			this.logger.info(
-				`Teams reaction burst ${result.reaction}: attempted=${result.attempted}, accepted=${result.accessibilityAccepted}, elapsedMs=${result.elapsedMs}, stop=${result.stopReason}.`,
-			);
-			if (result.accessibilityAccepted > 0) await key.showOk();
-			else await key.showAlert();
-		} catch (error) {
-			this.logger.reportError(`Teams reaction burst ${reaction}`, error);
-			await key.showAlert();
+			await key[indicator]();
+		} catch {
+			this.logger.warn(`Could not show the result of the ${reaction} reaction.`);
 		}
 	}
 }

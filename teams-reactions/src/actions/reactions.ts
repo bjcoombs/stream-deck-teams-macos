@@ -2,7 +2,6 @@ import streamDeck, {
 	action,
 	type DidReceiveSettingsEvent,
 	type KeyDownEvent,
-	type KeyUpEvent,
 	SingletonAction,
 	type WillAppearEvent,
 	type WillDisappearEvent,
@@ -10,13 +9,11 @@ import streamDeck, {
 
 import type { Reaction } from "../helper-runner";
 import { ReactionKeyController, reactionFromSettings, reactionKeyImage } from "../reaction-key";
-import { reactionBurstCoordinator, reactionCoordinator } from "../teams-services";
+import { reactionCoordinator } from "../teams-services";
 import { logHelperError, refreshForKey } from "./call-controls";
 import { keyActionFromEvent, pressIgnored, stateSynchronizer } from "./state-synchronizer";
 
 const reactionKeyController = new ReactionKeyController({
-	startBurst: (id, reaction) => reactionBurstCoordinator.start(id, reaction),
-	stopBurst: id => reactionBurstCoordinator.stop(id),
 	sendOnce: reaction => reactionCoordinator.execute(reaction),
 }, {
 	info: message => streamDeck.logger.info(message),
@@ -33,12 +30,7 @@ abstract class ReactionKeyAction extends SingletonAction {
 
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
 		if (pressIgnored()) return;
-		await reactionKeyController.keyDown(ev.action, this.reactionFor(ev.payload.settings), ev.payload.isInMultiAction);
-	}
-
-	/** Never gated: a release always ends the key's reaction wave. */
-	override onKeyUp(ev: KeyUpEvent): void {
-		reactionKeyController.release(ev.action.id);
+		await reactionKeyController.keyDown(ev.action, this.reactionFor(ev.payload.settings));
 	}
 
 	override async onWillAppear(ev: WillAppearEvent): Promise<void> {
@@ -48,7 +40,6 @@ abstract class ReactionKeyAction extends SingletonAction {
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent): void {
-		reactionKeyController.release(ev.action.id);
 		stateSynchronizer.unregister(ev.action.id);
 	}
 

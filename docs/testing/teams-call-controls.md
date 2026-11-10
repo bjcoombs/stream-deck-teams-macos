@@ -80,48 +80,33 @@ Shortcut fallback is disabled by default. Run these cases from a development she
 
 Do not enable a fallback in the packaged plugin until every focus case passes and the post-action Accessibility scan confirms the requested state.
 
-## Reaction tap and hold
+## Reaction press
 
-The default hold rate is 7 attempts per second. Confirm the picker remains open during repeats, presses are spaced about 143 ms apart, and slow picker setup does not produce a catch-up burst.
+Since version `0.2.0.20` every reaction press sends exactly one reaction, whether the key is tapped or held. Teams has no hold-to-repeat reaction. The helper's Accessibility count is not a delivery count.
 
-For each rate, hold Love for five seconds. Count the values separately. The helper's Accessibility count is not a delivery count.
-
-| Attempts per second | Scheduled attempts | Accessibility accepted | Seen by second participant | Teams responsive | Result |
-|---:|---:|---:|---:|---|---|
-| 1 | Not run | Not run | Not run | Not run | Not run |
-| 2 | Not run | Not run | Not run | Not run | Not run |
-| 3 | Not run | Not run | Not run | Not run | Not run |
-| 5 | Not run | Not run | Not run | Not run | Not run |
-| 7 (default) | Not run | Not run | Not run | Not run | Not run |
-| 10 | Not run | Not run | Not run | Not run | Not run |
-
-Also verify:
-
-- A tap sends exactly one reaction.
-- Repeating starts only after the hold threshold.
-- Release stops within one in-flight attempt.
-- Holding beyond five seconds stops at the duration guard.
-- Changing profiles while holding stops the session.
-- Disconnecting the Stream Deck while holding stops the session.
-- Another reaction or call-control key cannot overlap the active session.
-- A Multi Action sends only one reaction.
-- Reactions disabled by the organizer produce one clear alert.
-- Ending the meeting stops without an orphaned helper or popover.
+| Case | Expected result | Result |
+|---|---|---|
+| Tap a reaction key | Exactly one reaction attempt; the key shows a check mark | Not run |
+| Hold a reaction key for three seconds | Exactly one reaction attempt, sent on press; release does nothing | Not run |
+| Press a reaction key while another Teams operation runs | One yellow alert; no reaction | Not run |
+| Reaction key inside a Multi Action | Exactly one reaction attempt | Not run |
+| Reactions disabled by the organizer | One clear alert | Not run |
+| End the meeting right after a press | No orphaned helper or open reaction picker | Not run |
 
 ## Reaction picker
 
-The **Reaction** key sends whichever reaction its Property Inspector selects. It shares the press path of the hidden fixed reaction keys, so the tap and hold cases above apply to it unchanged.
+The **Reaction** key sends whichever reaction its Property Inspector selects. It shares the press path of the hidden fixed reaction keys, so the reaction press cases above apply to it unchanged.
 
 | Case | Expected result | Result |
 |---|---|---|
 | Add a new Reaction key | The Property Inspector shows Like selected and the key shows the Like image | Not run |
-| Open the Property Inspector | Five reaction tiles in a three by two grid with 48 px icons; the selected tile has a blue outline and no radio dots | Not run |
+| Open the Property Inspector | No text mentions holding the key; five reaction tiles in a three by two grid with 48 px icons; the selected tile has a blue outline and no radio dots | Not run |
 | Hover a tile | The tooltip names the reaction (Like, Love, Applause, Laugh, Surprised) | Not run |
 | Tab into the grid, then use the arrow keys | Focus shows a white ring; arrows move and select the next reaction, and the key image follows | Not run |
 | Existing Reaction key set to Laugh before the update | After the update the Laugh tile is selected and the key still sends Laugh | Not run |
 | Select each of Love, Applause, Laugh, Surprised | The key image changes to that reaction without reopening the profile | Not run |
 | Tap the key after each selection | Teams sends a reaction attempt for the selected reaction only | Not run |
-| Hold the key with Love selected | A reaction wave of Love runs and stops on release, as for the fixed Love key | Not run |
+| Hold the key with Love selected | One Love reaction attempt, as for the fixed Love key | Not run |
 | Two Reaction keys set to different reactions | Each key sends its own reaction and shows its own image | Not run |
 | Switch profile away and back | The key keeps its selection and image | Not run |
 | Restart Stream Deck | The key keeps its selection and image | Not run |
@@ -161,6 +146,8 @@ Version `0.2.0.20` greys every key and ignores presses while status finds no mee
 ## Release decision
 
 Do not call the plugin production-ready until all core controls pass in both directions, Leave is proven safe for attendee and organizer roles, and the default 7-per-second reaction wave is confirmed by a second participant.
+
+The dated sections below are historical results. Reaction holds and waves they describe were removed from the plugin in version `0.2.0.20`.
 
 ## 2026-10-28 toolbar compatibility check
 

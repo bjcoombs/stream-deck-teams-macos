@@ -42,7 +42,7 @@ export function stateIndex(field: StateField, value: string): State | undefined 
 /**
  * True, after logging, when a key press must do nothing because no Teams meeting
  * is active. Only key-down presses check this: a release always runs, so Push
- * to Talk still mutes and a reaction wave still stops.
+ * to Talk still mutes and an armed Leave still disarms.
  */
 export function pressIgnored(): boolean {
 	if (meetingActivity.active) return false;

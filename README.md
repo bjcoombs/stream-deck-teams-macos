@@ -53,10 +53,9 @@ ambiguous, busy, or failed.
 - The **Reaction** key sends Like, Love, Applause, Laugh, or Surprised. Choose
   the reaction from the grid of reaction tiles under **Emoji Reactions** in the
   key settings; the key image follows the choice. New keys default to Like.
-- Tap a reaction key to send once.
-- Hold it to repeat at 7 attempts per second, starting after about 300 ms.
-- Release to stop. Each hold is limited to five seconds, including picker setup.
-- Reactions in Multi Actions send once. Only one Teams operation runs at a time.
+- Each press of a reaction key sends exactly one reaction, whether tapped or
+  held; Teams has no hold-to-repeat reaction. Only one Teams operation runs at a
+  time.
 - Hold **Push to Talk** to unmute a muted microphone; release to mute it again.
   If the microphone was already unmuted, the key changes nothing. Release,
   removing the key, disconnecting the device, and system wake all mute again.
@@ -96,8 +95,8 @@ and the Accessibility hash collision fix.
 Live checks confirmed microphone and camera changes and a reaction tap with Teams
 in the background; earlier helper checks confirmed both hand commands.
 
-Leave safety, minimized/compact and multiple meeting windows, extended reaction
-holds on this build, and delivery to another participant still need qualification.
+Leave safety, minimized/compact and multiple meeting windows, and delivery to
+another participant still need qualification.
 See the [testing checklist and results](docs/testing/teams-call-controls.md) for
 measurements and the full list of verified and unverified cases.
 

@@ -2,12 +2,10 @@ import {
 	CommandCoordinator,
 	OperationLock,
 	PersistentControlClient,
-	ReactionBurstCoordinator,
 	ReactionCoordinator,
 	isPersistentCommand,
 	runReactionHelper,
 	runTeamsCommand,
-	startReactionBurst,
 } from "./helper-runner";
 import { MeetingActivity } from "./meeting-activity";
 
@@ -42,21 +40,3 @@ export const reactionCoordinator = new ReactionCoordinator(operationLock, reacti
 	try { return await runReactionHelper(reaction); }
 	finally { persistentControls.resume(); }
 }));
-export const reactionBurstCoordinator = new ReactionBurstCoordinator(operationLock, reaction => {
-	meetingActivity.commandStarted();
-	persistentControls.pause();
-	try {
-		const session = startReactionBurst(reaction);
-		return {
-			stop: () => session.stop(),
-			completion: session.completion.finally(() => {
-				persistentControls.resume();
-				meetingActivity.commandFinished();
-			}),
-		};
-	} catch (error) {
-		persistentControls.resume();
-		meetingActivity.commandFinished();
-		throw error;
-	}
-});

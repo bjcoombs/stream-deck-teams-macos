@@ -54,21 +54,11 @@ export type ReactionCommandResult = {
 	accessibilityAccepted: number;
 };
 
-export type BurstResult = {
-	command: "burst";
-	reaction: Reaction;
-	attempted: number;
-	accessibilityAccepted: number;
-	elapsedMs: number;
-	stopReason: "key-up" | "duration-limit" | "count-limit" | "selection-error" | "error";
-};
-
 const REACTION_SET: ReadonlySet<string> = new Set(REACTIONS);
 const COMMAND_SET: ReadonlySet<string> = new Set(TEAMS_COMMANDS);
 const DEFAULT_HELPER_PATH = fileURLToPath(new URL("./teams-reaction", import.meta.url));
 const DEFAULT_TIMEOUT_MS = 8_000;
 const HAND_COMMAND_TIMEOUT_MS = 15_000;
-const DEFAULT_BURST_TIMEOUT_MS = 6_500;
 const MAX_OUTPUT_BYTES = 64 * 1024;
 
 type ExecFileCallback = (error: NodeJS.ErrnoException | null, stdout: string, stderr: string) => void;
@@ -195,24 +185,6 @@ function parseReactionResult(stdout: string): ReactionCommandResult {
 	return value as ReactionCommandResult;
 }
 
-export function parseBurstResult(stdout: string): BurstResult {
-	const value = parseObject(stdout);
-	const stopReasons = ["key-up", "duration-limit", "count-limit", "selection-error", "error"];
-	if (
-		value.command !== "burst"
-		|| typeof value.reaction !== "string"
-		|| !isReaction(value.reaction)
-		|| typeof value.attempted !== "number"
-		|| typeof value.accessibilityAccepted !== "number"
-		|| typeof value.elapsedMs !== "number"
-		|| typeof value.stopReason !== "string"
-		|| !stopReasons.includes(value.stopReason)
-	) {
-		throw new HelperExecutionError(null, false, "The Teams helper returned an incomplete burst result.");
-	}
-	return value as BurstResult;
-}
-
 function runHelper<T>(args: readonly string[], parser: (stdout: string) => T, options: HelperRunnerOptions): Promise<T> {
 	const helperPath = options.helperPath ?? DEFAULT_HELPER_PATH;
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -264,7 +236,7 @@ type InputLike = {
 	end(): void;
 };
 
-export type BurstChildLike = {
+export type ChildLike = {
 	stdin: InputLike;
 	stdout: StreamLike;
 	stderr: StreamLike;
@@ -272,86 +244,6 @@ export type BurstChildLike = {
 	on(event: "close", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
 	kill(signal?: NodeJS.Signals): boolean;
 };
-
-type SpawnLike = (file: string, args: readonly string[], options: { stdio: ["pipe", "pipe", "pipe"] }) => BurstChildLike;
-
-export type BurstRunnerOptions = {
-	helperPath?: string;
-	timeoutMs?: number;
-	spawnImpl?: SpawnLike;
-};
-
-export type BurstSession = {
-	completion: Promise<BurstResult>;
-	stop(): void;
-};
-
-export function startReactionBurst(reaction: string, options: BurstRunnerOptions = {}): BurstSession {
-	if (!isReaction(reaction)) throw new HelperExecutionError(null, false, "An invalid reaction burst was blocked before launching the helper.");
-	const helperPath = options.helperPath ?? DEFAULT_HELPER_PATH;
-	const timeoutMs = options.timeoutMs ?? DEFAULT_BURST_TIMEOUT_MS;
-	const spawnImpl = options.spawnImpl ?? (spawn as unknown as SpawnLike);
-	ensureExecutable(helperPath);
-	const child = spawnImpl(helperPath, ["burst", reaction], { stdio: ["pipe", "pipe", "pipe"] });
-	let stdout = "";
-	let stderr = "";
-	let stopped = false;
-	let settled = false;
-	let killedByTimeout = false;
-	let killTimer: ReturnType<typeof setTimeout> | undefined;
-
-	const completion = new Promise<BurstResult>((resolve, reject) => {
-		const timer = setTimeout(() => {
-			if (settled) return;
-			killedByTimeout = true;
-			child.kill("SIGTERM");
-			if (!settled) killTimer = setTimeout(() => {
-				if (!settled) child.kill("SIGKILL");
-			}, 300);
-		}, timeoutMs);
-		child.stdout.on("data", (chunk) => {
-			if (stdout.length < MAX_OUTPUT_BYTES) stdout += String(chunk).slice(0, MAX_OUTPUT_BYTES - stdout.length);
-		});
-		child.stderr.on("data", (chunk) => {
-			if (stderr.length < MAX_OUTPUT_BYTES) stderr += String(chunk).slice(0, MAX_OUTPUT_BYTES - stderr.length);
-		});
-		child.on("error", (error) => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timer);
-			if (killTimer) clearTimeout(killTimer);
-			const spawnCode = typeof error.code === "string" && /^E[A-Z0-9]+$/.test(error.code) ? error.code : null;
-			reject(new HelperExecutionError(null, false, safeDiagnostic(null, spawnCode, false, error.message)));
-		});
-		child.on("close", (code) => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timer);
-			if (killTimer) clearTimeout(killTimer);
-			if (code === 0 && !killedByTimeout) {
-				try {
-					const result = parseBurstResult(stdout);
-					if (result.reaction !== reaction) throw new HelperExecutionError(null, false, "The Teams helper returned a burst result for a different reaction.");
-					resolve(result);
-				} catch (error) {
-					reject(error);
-				}
-				return;
-			}
-			const timedOut = killedByTimeout;
-			reject(new HelperExecutionError(code, timedOut, safeDiagnostic(code, null, timedOut, stderr)));
-		});
-	});
-
-	return {
-		completion,
-		stop() {
-			if (stopped) return;
-			stopped = true;
-			child.stdin.end();
-		},
-	};
-}
 
 export class OperationLock {
 	private owner: symbol | undefined;
@@ -416,55 +308,11 @@ export class ReactionCoordinator {
 	}
 }
 
-export type BurstStart = { status: "started"; completion: Promise<BurstResult> } | { status: "busy" };
-
-export class ReactionBurstCoordinator {
-	private active: { context: string; session: BurstSession } | undefined;
-	private readonly lock: OperationLock;
-	private readonly startBurst: (reaction: Reaction) => BurstSession;
-
-	constructor(lock = new OperationLock(), startBurst: (reaction: Reaction) => BurstSession = startReactionBurst) {
-		this.lock = lock;
-		this.startBurst = startBurst;
-	}
-
-	start(context: string, reaction: Reaction): BurstStart {
-		if (this.active) return { status: "busy" };
-		const token = this.lock.tryAcquire();
-		if (!token) return { status: "busy" };
-		let session: BurstSession;
-		try {
-			session = this.startBurst(reaction);
-		} catch (error) {
-			this.lock.release(token);
-			throw error;
-		}
-		this.active = { context, session };
-		const completion = (async () => {
-			try {
-				return await session.completion;
-			} finally {
-				if (this.active?.session === session) this.active = undefined;
-				this.lock.release(token);
-			}
-		})();
-		return { status: "started", completion };
-	}
-
-	stop(context: string): void {
-		if (this.active?.context === context) this.active.session.stop();
-	}
-
-	stopAll(): void {
-		this.active?.session.stop();
-	}
-}
-
 export function isPersistentCommand(command: string): command is TeamsCommand {
 	return ["status", "mute", "unmute", "camera-on", "camera-off"].includes(command);
 }
 
-type PersistentChild = Omit<BurstChildLike, "stdin"> & {
+type PersistentChild = Omit<ChildLike, "stdin"> & {
 	stdin: InputLike & {
 		write(data: string): unknown;
 		on(event: "error", listener: (error: Error) => void): unknown;
