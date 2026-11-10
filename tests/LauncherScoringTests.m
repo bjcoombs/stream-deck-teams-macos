@@ -176,6 +176,108 @@ static void TestShareDialogue(int *failures) {
     ExpectState(@[], @"meetingActive", @NO, @"no elements must not read as a meeting", failures);
 }
 
+static AXNode *ShareButton(NSString *title, NSInteger depth, BOOL inToolbar, BOOL focused) {
+    AXNode *node = Button(title, @"", depth);
+    node.inToolbar = inToolbar;
+    node.focusedWindow = focused;
+    return node;
+}
+
+// Live Teams scan (10 Nov 2026): while sharing, the meeting toolbar button reads Stop
+// sharing (title and description) and a floating Sharing control bar window has another.
+static void TestScreenShare(int *failures) {
+    AXNode *mic = Button(@"Mute mic", @"microphone-button", 10);
+    AXNode *toolbarStop = ShareButton(@"Stop sharing", 16, YES, NO);
+    toolbarStop.nodeDescription = @"Stop sharing";
+    AXNode *barStop = ShareButton(@"Stop sharing", 15, NO, YES);
+    barStop.windowTitle = @"Sharing control bar | Microsoft Teams";
+    BOOL ambiguous = YES;
+    AXNode *chosen = BestUniqueNode(@[barStop, toolbarStop], ^NSInteger(AXNode *node) { return ShareScore(node); }, &ambiguous);
+    Expect(chosen == toolbarStop && !ambiguous, @"the toolbar Stop sharing must win over the focused control bar's", failures);
+    ambiguous = YES;
+    chosen = BestUniqueNode(@[ShareButton(@"Stop sharing", 15, NO, NO), toolbarStop], ^NSInteger(AXNode *node) { return ShareScore(node); }, &ambiguous);
+    Expect(chosen == toolbarStop && !ambiguous, @"the toolbar Stop sharing must win when neither window is focused", failures);
+    ExpectState(@[mic, barStop, toolbarStop], @"screenShare", @"on", @"Stop sharing in the toolbar must report sharing on", failures);
+    ExpectState(@[barStop], @"meetingActive", @YES, @"a control bar Stop sharing alone must mark a meeting active", failures);
+    ExpectState(@[barStop], @"screenShare", @"on", @"a control bar Stop sharing alone must report sharing on", failures);
+    ExpectState(@[mic, ShareButton(@"Share", 16, YES, YES)], @"screenShare", @"off", @"Share in the toolbar must report sharing off", failures);
+    ExpectState(@[ShareButton(@"Share", 16, YES, YES)], @"meetingActive", @NO, @"a toolbar Share alone is not meeting evidence", failures);
+    ExpectState(@[mic, toolbarStop, ShareButton(@"Stop sharing", 16, YES, NO)], @"screenShare", @"unknown", @"two toolbar Stop sharing controls must report unknown", failures);
+    ExpectState(@[mic], @"screenShare", @"unavailable", @"a meeting without a Share control must report unavailable", failures);
+    ExpectState(@[ShareButton(@"Stop sharing", 15, NO, NO)], @"screenShare", @"on", @"Stop sharing is recognised outside a toolbar", failures);
+
+    AXNode *menuShare = ShareButton(@"Share", 4, NO, NO);
+    menuShare.role = (__bridge NSString *)kAXMenuItemRole;
+    Expect(ShareScore(menuShare) == NSIntegerMin, @"the menu bar Share item must never be pressed", failures);
+    menuShare.inToolbar = YES;
+    Expect(ShareScore(menuShare) == NSIntegerMin, @"a Share menu item must be rejected even inside a toolbar", failures);
+    ExpectState(@[mic, menuShare], @"screenShare", @"unavailable", @"a Share menu item is not the meeting Share control", failures);
+    ExpectState(@[menuShare], @"meetingActive", @NO, @"a Share menu item is not meeting evidence", failures);
+    Expect(ShareScore(ShareButton(@"Share", 12, NO, YES)) == NSIntegerMin, @"Share outside a toolbar must never be pressed", failures);
+    Expect(ShareScore(ShareButton(@"Share Microsoft Whiteboard Start Whiteboard", 10, YES, YES)) == NSIntegerMin, @"Share Microsoft Whiteboard is not the Share control", failures);
+    AXNode *showMenuOnly = ShareButton(@"Share", 16, YES, YES);
+    showMenuOnly.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(ShareScore(showMenuOnly) == NSIntegerMin, @"the Share control needs an actual press action", failures);
+
+    AXNode *dialogue = Button(@"Share content", @"", 8);
+    dialogue.role = (__bridge NSString *)kAXGroupRole;
+    dialogue.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(ShareScore(dialogue) == NSIntegerMin, @"the Share content dialogue must not be pressed as the Share control", failures);
+    ExpectState(@[dialogue], @"screenShare", @"off", @"an open share picker must report sharing off", failures);
+    ExpectState(@[], @"screenShare", @"unavailable", @"no meeting must report sharing unavailable", failures);
+    NSArray *controls = StateControlNodes(@{@"applicationCount": @1, @"elements": @[mic, toolbarStop, barStop, dialogue, menuShare]});
+    Expect(controls.count == 4 && ![controls containsObject:menuShare], @"persistent refresh must keep the Share controls and the share picker", failures);
+    AXNode *bareDialogue = Button(@"Share content", @"", 8);
+    bareDialogue.role = (__bridge NSString *)kAXGroupRole;
+    bareDialogue.actions = @[];
+    Expect([StateControlNodes(@{@"applicationCount": @1, @"elements": @[bareDialogue]}) containsObject:bareDialogue], @"persistent refresh must keep a Share content dialogue with no actions", failures);
+    AXNode *bareRefreshed = Button(@"Share content", @"", 8);
+    bareRefreshed.role = bareDialogue.role;
+    bareRefreshed.actions = @[];
+    Expect(RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"an actionless Share content dialogue that is still open must not force rediscovery", failures);
+    bareRefreshed.title = @"Something else";
+    Expect(!RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"an actionless node that stopped being the Share dialogue must force rediscovery", failures);
+    bareRefreshed.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(!RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"a pressable node that stopped being the Share dialogue must force rediscovery", failures);
+    AXNode *refreshed = ShareButton(@"Share", 16, YES, NO);
+    Expect(RefreshedControlsMatch(@[toolbarStop], @[refreshed]), @"the toolbar button changing from Stop sharing to Share must stay a Share control", failures);
+}
+
+static AXNode *Child(AXNode *parent, NSString *role, NSString *description) {
+    AXNode *node = Button(@"", @"", parent ? parent.depth + 1 : 8);
+    node.role = role;
+    node.nodeDescription = description;
+    node.parent = parent;
+    return node;
+}
+
+// Live Teams scan (10 Nov 2026): leaving while sharing opens a dialogue group whose
+// inner group holds the question text and whose own children are Stay and Leave.
+static void TestLeaveDialogue(int *failures) {
+    NSString *button = (__bridge NSString *)kAXButtonRole, *group = (__bridge NSString *)kAXGroupRole;
+    AXNode *dialogue = Child(nil, group, @"");
+    AXNode *inner = Child(dialogue, group, @"");
+    AXNode *text = Child(inner, (__bridge NSString *)kAXStaticTextRole, @"");
+    text.value = @"You’re currently sharing. Are you sure you want to leave?";
+    AXNode *stay = Child(dialogue, button, @"Stay");
+    AXNode *dialogueLeave = Child(dialogue, button, @"Leave");
+    AXNode *toolbar = Child(nil, (__bridge NSString *)kAXToolbarRole, @"");
+    AXNode *toolbarLeave = Child(toolbar, button, @"Leave");
+    toolbarLeave.title = @"Leave"; toolbarLeave.inToolbar = YES;
+    AXNode *otherStay = Child(toolbar, button, @"Stay");
+    NSArray *open = @[toolbar, toolbarLeave, otherStay, dialogue, inner, text, stay, dialogueLeave];
+    Expect(LeaveDialogButton(open, @"leave") == dialogueLeave, @"the dialogue's Leave must be chosen over the toolbar Leave", failures);
+    Expect(LeaveDialogButton(open, @"stay") == stay, @"Stay must come from the dialogue, never another Stay button", failures);
+    Expect(LeaveDialogButton(@[toolbar, toolbarLeave, otherStay], @"stay") == nil, @"without the dialogue no Stay is pressed", failures);
+    Expect(LeaveDialogButton(@[toolbar, toolbarLeave], @"leave") == nil, @"without the dialogue Leave falls back to the toolbar scorer", failures);
+    Expect(LeaveDialogButton(@[dialogue, inner, text, dialogueLeave, otherStay], @"stay") == nil, @"a dialogue without its own Stay must not match", failures);
+    AXNode *otherText = Child(inner, (__bridge NSString *)kAXStaticTextRole, @"");
+    otherText.value = @"Are you sure you want to leave?";
+    Expect(LeaveDialogButton(@[dialogue, inner, otherText, stay, dialogueLeave], @"leave") == nil, @"the question must mention current sharing", failures);
+    stay.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(LeaveDialogButton(open, @"stay") == nil, @"Stay needs an actual press action", failures);
+}
+
 int main(void) {
     @autoreleasepool {
         int failures = 0;
@@ -186,6 +288,8 @@ int main(void) {
         TestAXErrorDescription(&failures);
         TestLiveEffectsPanel(&failures);
         TestShareDialogue(&failures);
+        TestScreenShare(&failures);
+        TestLeaveDialogue(&failures);
 
         __block NSInteger reactionPresses = 0;
         __block NSInteger reacquisitions = 0;
@@ -348,16 +452,6 @@ int main(void) {
         freshMic.title = @"Mute mic"; freshMic.actions = @[];
         Expect(!RefreshedControlsMatch(@[cachedMic], @[freshMic]), @"disappeared actions must trigger rediscovery", &failures);
         Expect(!RefreshedControlsMatch(@[cachedMic], @[]), @"missing cached controls must trigger rediscovery", &failures);
-
-        Expect(BurstDurationLimit == 5.0, @"reaction hold guard must allow five seconds", &failures);
-        Expect(BurstMaximumAttempts >= (NSInteger)ceil(BurstDurationLimit * BurstMaximumRate), @"attempt cap must allow the configured duration at the maximum supported rate", &failures);
-        NSTimeInterval interval = 1.0 / 7.0;
-        Expect(fabs(NextBurstAttemptTime(1.8, 7) - (1.8 + interval)) < 0.000001, @"slow picker setup must not create overdue reaction presses", &failures);
-        Expect(fabs(NextBurstAttemptTime(0.01, 7) - BurstHoldThreshold) < 0.000001, @"fast setup must preserve the tap hold threshold", &failures);
-        NSTimeInterval pressTime = BurstHoldThreshold;
-        for (NSInteger repeat = 0; repeat < 7; repeat += 1) pressTime = NextBurstAttemptTime(pressTime, 7);
-        Expect(fabs(pressTime - (BurstHoldThreshold + 1.0)) < 0.000001, @"seven repeat intervals must span one second", &failures);
-        Expect(NextBurstAttemptTime(2.2, 7) > 2.34, @"a slow press or target recovery must not trigger catch-up presses", &failures);
 
         AXNode *raiseHand = Button(@"Raise your hand", @"", 10);
         AXNode *react = Button(@"React", @"", 10);

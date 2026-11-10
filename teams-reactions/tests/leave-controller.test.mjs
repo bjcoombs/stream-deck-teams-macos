@@ -3,7 +3,8 @@ import process from "node:process";
 import test from "node:test";
 
 import { HoldGate } from "../src/hold-gate.ts";
-import { LEAVE_ARMED_IMAGE, LEAVE_HOLD_MS, LeaveController } from "../src/leave-controller.ts";
+import { HelperExecutionError } from "../src/helper-runner.ts";
+import { LEAVE_ARMED_IMAGE, LEAVE_CONFIRMATION_EXIT_CODE, LEAVE_HOLD_MS, LeaveController } from "../src/leave-controller.ts";
 
 function fakeTimers() {
 	let next = 1;
@@ -44,15 +45,16 @@ function fakeLogger() {
 	};
 }
 
-function setup(execute = async () => ({ status: "completed" })) {
+function setup(execute = async () => ({ status: "completed" }), stay = undefined) {
 	const timers = fakeTimers();
 	const logger = fakeLogger();
 	let executions = 0;
+	let stays = 0;
 	const controller = new LeaveController(async () => {
 		executions += 1;
 		return execute();
-	}, logger, new HoldGate(LEAVE_HOLD_MS, timers));
-	return { timers, logger, controller, executions: () => executions };
+	}, logger, new HoldGate(LEAVE_HOLD_MS, timers), stay && (async () => { stays += 1; return stay(); }));
+	return { timers, logger, controller, executions: () => executions, stays: () => stays };
 }
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -220,4 +222,98 @@ test("a rejecting showAlert in the error path leaves no unhandled rejection", as
 	} finally {
 		process.off("unhandledRejection", listener);
 	}
+});
+
+test("a tap while Teams asks whether to leave while sharing presses Stay and shows OK", async () => {
+	const { timers, logger, controller, executions, stays } = setup(undefined, async () => "stayed");
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	await controller.keyUp(key);
+	await flush();
+	timers.fireAll();
+	await flush();
+	assert.equal(stays(), 1);
+	assert.equal(executions(), 0, "a tap never leaves");
+	assert.deepEqual(key.calls, [["setImage", LEAVE_ARMED_IMAGE], ["setImage"], ["showOk"]]);
+	assert.deepEqual(logger.lines, [["info", "Stayed in the meeting: pressed Stay in the Teams leave-while-sharing dialogue."]]);
+});
+
+test("a hold while Teams asks whether to leave runs Leave and never Stay", async () => {
+	const { timers, controller, executions, stays } = setup(undefined, async () => "stayed");
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	timers.fireAll();
+	await flush();
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(executions(), 1);
+	assert.equal(stays(), 0, "the release after a completed hold must not press Stay");
+	assert.deepEqual(key.calls.at(-1), ["showOk"]);
+});
+
+for (const outcome of ["none", "busy"]) {
+	test(`a tap with no Stay pressed (${outcome}) is an ordinary cancelled Leave`, async () => {
+		const { logger, controller, executions, stays } = setup(undefined, async () => outcome);
+		const key = fakeKey();
+		await controller.keyDown(key, false);
+		await controller.keyUp(key);
+		await flush();
+		assert.equal(stays(), 1);
+		assert.equal(executions(), 0);
+		assert.deepEqual(key.calls, [["setImage", LEAVE_ARMED_IMAGE], ["setImage"], ["showAlert"]]);
+		const busy = outcome === "busy" ? [["warn", "Could not press Stay because another Teams operation is running."]] : [];
+		assert.deepEqual(logger.lines, [...busy, ["info", `Leave cancelled: the key was released before ${LEAVE_HOLD_MS} ms.`]]);
+	});
+}
+
+test("a hold that makes Teams ask to confirm leaving while sharing is expected, alerts once and frees the next tap for Stay", async () => {
+	const { timers, logger, controller, executions, stays } = setup(async () => {
+		throw new HelperExecutionError(LEAVE_CONFIRMATION_EXIT_CODE, false, "Teams is asking to confirm leaving while sharing.");
+	}, async () => "stayed");
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	timers.fireAll();
+	await flush();
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(executions(), 1);
+	assert.deepEqual(key.calls, [["setImage", LEAVE_ARMED_IMAGE], ["setImage"], ["showAlert"]]);
+	assert.deepEqual(logger.lines, [["info", "Teams is asking to confirm leaving while sharing; hold again to leave or tap to stay."]], "the confirmation is not reported as an error");
+	await controller.keyDown(key, false);
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(stays(), 1, "the next tap presses Stay");
+	assert.deepEqual(key.calls.at(-1), ["showOk"]);
+});
+
+test("other leave helper failures are still reported as errors", async () => {
+	const failure = new HelperExecutionError(13, false, "Teams accepted the action, but the requested state was not confirmed.");
+	const { timers, logger, controller } = setup(async () => { throw failure; });
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	timers.fireAll();
+	await flush();
+	assert.deepEqual(logger.lines, [["error", "Teams command leave", failure]]);
+	assert.deepEqual(key.calls.at(-1), ["showAlert"]);
+});
+
+test("a failed Stay is reported and the tap still alerts as cancelled", async () => {
+	const failure = new Error("helper failed");
+	const { logger, controller, executions } = setup(undefined, async () => { throw failure; });
+	const key = fakeKey();
+	await controller.keyDown(key, false);
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(executions(), 0);
+	assert.deepEqual(key.calls.at(-1), ["showAlert"]);
+	assert.deepEqual(logger.lines[0], ["error", "Teams command leave-stay", failure]);
+});
+
+test("a multi-action Leave alerts without pressing Stay", async () => {
+	const { controller, stays } = setup(undefined, async () => "stayed");
+	const key = fakeKey();
+	await controller.keyDown(key, true);
+	await controller.keyUp(key);
+	await flush();
+	assert.equal(stays(), 0);
 });

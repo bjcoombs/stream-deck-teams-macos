@@ -5,16 +5,12 @@ import { fileURLToPath } from "node:url";
 export const REACTIONS = ["like", "love", "applause", "laugh", "surprise"] as const;
 export const TEAMS_COMMANDS = [
 	"status",
-	"mute",
-	"unmute",
-	"camera-on",
-	"camera-off",
-	"blur-on",
-	"blur-off",
-	"blur-toggle",
-	"hand-raise",
-	"hand-lower",
-	"leave",
+	"mute", "unmute",
+	"camera-on", "camera-off",
+	"blur-on", "blur-off", "blur-toggle",
+	"hand-raise", "hand-lower",
+	"share-toggle",
+	"leave", "leave-stay",
 ] as const;
 
 export type Reaction = (typeof REACTIONS)[number];
@@ -24,6 +20,7 @@ export type MicrophoneState = "muted" | "unmuted" | AvailabilityState;
 export type CameraState = "on" | "off" | AvailabilityState;
 export type BlurState = "on" | "off" | AvailabilityState;
 export type HandState = "raised" | "lowered" | AvailabilityState;
+export type ScreenShareState = "on" | "off" | AvailabilityState;
 
 export type TeamsState = {
 	meetingActive: boolean;
@@ -31,6 +28,7 @@ export type TeamsState = {
 	camera: CameraState;
 	backgroundBlur: BlurState;
 	hand: HandState;
+	screenShare: ScreenShareState;
 };
 
 /**
@@ -130,6 +128,7 @@ function safeDiagnostic(exitCode: number | null, spawnCode: string | null, timed
 		12: "The selected Teams control could not be invoked.",
 		13: "Teams accepted the action, but the requested state was not confirmed.",
 		14: "The requested Teams video effect is unavailable.",
+		15: "Teams is asking to confirm leaving while sharing.",
 		64: "The helper rejected its command arguments.",
 	};
 	if (exitCode !== null && diagnostics[exitCode]) return diagnostics[exitCode];
@@ -162,6 +161,7 @@ export function parseTeamsResult(stdout: string): TeamsCommandResult {
 		|| !isState(value.camera, ["on", "off"])
 		|| !isState(value.backgroundBlur, ["on", "off"])
 		|| !isState(value.hand, ["raised", "lowered"])
+		|| !isState(value.screenShare, ["on", "off"])
 		|| typeof value.command !== "string"
 		|| !isTeamsCommand(value.command)
 		|| typeof value.changed !== "boolean"

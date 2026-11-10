@@ -79,7 +79,7 @@ test("the meeting activity decision stays in its SDK-free module", async () => {
 });
 
 test("every Teams key-down is gated while no meeting is active, and no release is", async () => {
-	const files = ["call-controls.ts", "background-blur.ts", "push-to-talk.ts", "reactions.ts"];
+	const files = ["call-controls.ts", "background-blur.ts", "push-to-talk.ts", "reactions.ts", "share-screen.ts"];
 	for (const name of files) {
 		const text = await fs.readFile(path.join(pluginRoot, "src", "actions", name), "utf8");
 		const methods = text.split(/\n\toverride /).slice(1);

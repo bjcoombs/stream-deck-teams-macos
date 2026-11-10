@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 import test from "node:test";
 import { CommandCoordinator, HelperExecutionError, OperationLock, PersistentControlClient, ReactionCoordinator, watchPluginConnection } from "../src/helper-runner.ts";
 
-const state = { meetingActive: true, microphone: "muted", camera: "on", hand: "lowered", backgroundBlur: "unknown", command: "status", changed: false };
+const state = { meetingActive: true, microphone: "muted", camera: "on", hand: "lowered", backgroundBlur: "unknown", screenShare: "off", command: "status", changed: false };
 
 function fixture(options = {}) {
 	const children = [];

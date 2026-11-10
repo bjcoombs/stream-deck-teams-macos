@@ -13,6 +13,7 @@ import {
 	parseTeamsResult,
 	runReactionHelper,
 	runTeamsCommand,
+	isPersistentCommand,
 } from "../src/helper-runner.ts";
 
 const STATE_RESULT = {
@@ -21,6 +22,7 @@ const STATE_RESULT = {
 	camera: "off",
 	backgroundBlur: "unknown",
 	hand: "lowered",
+	screenShare: "off",
 	command: "status",
 	changed: false,
 };
@@ -79,6 +81,29 @@ test("blocks invalid commands and reactions before launching a process", async (
 
 test("rejects incomplete helper JSON instead of inventing state", () => {
 	assert.throws(() => parseTeamsResult('{"meetingActive":true}'), /incomplete state result/);
+	const withoutShare = { ...STATE_RESULT };
+	delete withoutShare.screenShare;
+	assert.throws(() => parseTeamsResult(JSON.stringify(withoutShare)), /incomplete state result/, "a result without screenShare is incomplete");
+	assert.throws(() => parseTeamsResult(JSON.stringify({ ...STATE_RESULT, screenShare: "presenting" })), /incomplete state result/);
+});
+
+test("share-toggle is a one-shot helper command that reports the screen share state", async () => {
+	for (const screenShare of ["on", "off", "unknown", "unavailable"]) {
+		const capture = {};
+		const result = await runTeamsCommand("share-toggle", { execFileImpl: execResult({ ...STATE_RESULT, command: "share-toggle", changed: true, screenShare }, capture) });
+		assert.deepEqual(capture.args, ["share-toggle"]);
+		assert.equal(capture.options.timeout, 8_000);
+		assert.equal(result.screenShare, screenShare);
+	}
+	assert.equal(isPersistentCommand("share-toggle"), false, "share-toggle opens the share picker, so it never runs in the persistent helper");
+});
+
+test("leave-stay is a one-shot helper command", async () => {
+	const capture = {};
+	const result = await runTeamsCommand("leave-stay", { execFileImpl: execResult({ ...STATE_RESULT, command: "leave-stay", changed: true, screenShare: "on" }, capture) });
+	assert.deepEqual(capture.args, ["leave-stay"]);
+	assert.equal(result.changed, true);
+	assert.equal(isPersistentCommand("leave-stay"), false);
 });
 
 test("maps helper exit codes to privacy-safe diagnostics", async () => {

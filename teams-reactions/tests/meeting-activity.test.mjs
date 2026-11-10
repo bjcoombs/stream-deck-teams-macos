@@ -3,8 +3,8 @@ import test from "node:test";
 
 import { COMMAND_HOLD_MS, CONFIRM_DELAY_MS, MeetingActivity, RECHECK_MS, inactiveKeyImage, showsNoMeeting } from "../src/meeting-activity.ts";
 
-const NO_MEETING = { meetingActive: false, microphone: "unavailable", camera: "unavailable", backgroundBlur: "unavailable", hand: "unavailable" };
-const MEETING = { meetingActive: true, microphone: "muted", camera: "off", backgroundBlur: "unknown", hand: "lowered" };
+const NO_MEETING = { meetingActive: false, microphone: "unavailable", camera: "unavailable", backgroundBlur: "unavailable", hand: "unavailable", screenShare: "unavailable" };
+const MEETING = { meetingActive: true, microphone: "muted", camera: "off", backgroundBlur: "unknown", hand: "lowered", screenShare: "off" };
 /** What status reads while the Teams video effects panel is open: no meeting, but a blur selection. */
 const EFFECTS_PANEL = { ...NO_MEETING, backgroundBlur: "off" };
 
@@ -51,11 +51,12 @@ test("showsNoMeeting needs no meeting and every control unavailable", () => {
 	assert.equal(showsNoMeeting(NO_MEETING), true);
 	assert.equal(showsNoMeeting(MEETING), false);
 	assert.equal(showsNoMeeting({ ...NO_MEETING, meetingActive: true }), false);
-	for (const field of ["microphone", "camera", "backgroundBlur", "hand"]) {
+	for (const field of ["microphone", "camera", "backgroundBlur", "hand", "screenShare"]) {
 		assert.equal(showsNoMeeting({ ...NO_MEETING, [field]: "unknown" }), false, `${field} unknown is not evidence`);
 	}
 	assert.equal(showsNoMeeting(EFFECTS_PANEL), false);
 	assert.equal(showsNoMeeting({ ...NO_MEETING, backgroundBlur: "on" }), false);
+	assert.equal(showsNoMeeting({ ...NO_MEETING, screenShare: "on" }), false, "a Stop sharing control is meeting evidence");
 });
 
 test("inactiveKeyImage names the dimmed twin", () => {

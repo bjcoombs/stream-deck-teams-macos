@@ -28,7 +28,7 @@ export type ActivityClock = {
 	schedule(callback: () => void, ms: number): () => void;
 };
 
-const FIELDS = ["microphone", "camera", "backgroundBlur", "hand"] as const;
+const FIELDS = ["microphone", "camera", "backgroundBlur", "hand", "screenShare"] as const;
 
 /**
  * True only when a status shows no meeting and no control at all. With no

@@ -4,7 +4,7 @@ import { type BlurState, stickyBlur, type TeamsState } from "../helper-runner";
 import { inactiveKeyImage } from "../meeting-activity";
 import { commandCoordinator, meetingActivity, operationLock, persistentControls } from "../teams-services";
 
-export type StateField = "microphone" | "camera" | "backgroundBlur" | "hand";
+export type StateField = "microphone" | "camera" | "backgroundBlur" | "hand" | "screenShare";
 type KnownState = "muted" | "unmuted" | "on" | "off" | "raised" | "lowered";
 
 const UNKNOWN_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><rect width="144" height="144" rx="22" fill="#24262b"/><circle cx="72" cy="72" r="41" fill="none" stroke="#f0b429" stroke-width="9"/><text x="72" y="91" text-anchor="middle" font-family="Arial,sans-serif" font-size="58" font-weight="700" fill="#f0b429">?</text></svg>`;
@@ -33,6 +33,7 @@ export function stateIndex(field: StateField, value: string): State | undefined 
 		camera: ["on", "off"],
 		backgroundBlur: ["on", "off"],
 		hand: ["lowered", "raised"],
+		screenShare: ["off", "on"],
 	};
 	if (value === mappings[field][0]) return 0;
 	if (value === mappings[field][1]) return 1;

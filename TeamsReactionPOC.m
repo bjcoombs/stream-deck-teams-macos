@@ -10,11 +10,6 @@ static const NSInteger MaxTraversalDepth = 40;
 static const NSInteger MaxVisitedElements = 30000;
 static const NSTimeInterval MenuTimeout = 4.0;
 static const NSTimeInterval VerificationTimeout = 2.0;
-static const NSTimeInterval BurstHoldThreshold = 0.30;
-static const NSTimeInterval BurstDurationLimit = 5.0;
-static const NSInteger BurstDefaultRate = 7;
-static const NSInteger BurstMaximumRate = 10;
-static const NSInteger BurstMaximumAttempts = 50;
 static CFStringRef const AXScrollToVisibleAction = CFSTR("AXScrollToVisible");
 
 @interface AXNode : NSObject
@@ -34,6 +29,8 @@ static CFStringRef const AXScrollToVisibleAction = CFSTR("AXScrollToVisible");
 @property(nonatomic) BOOL focusedWindow;
 @property(nonatomic) BOOL selected;
 @property(nonatomic) BOOL meetingReactionPicker;
+@property(nonatomic) BOOL inToolbar;
+@property(nonatomic, strong) AXNode *parent;
 - (AXUIElementRef)element;
 - (NSString *)searchableText;
 - (NSString *)displayText;
@@ -77,89 +74,25 @@ static NSDictionary<NSString *, NSDictionary *> *ReactionDefinitions(void) {
     return values;
 }
 
-static NSArray<NSString *> *LauncherLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"react", @"reaction", @"reactions", @"reageren", @"reactie", @"reacties", @"réagir", @"réaction", @"réactions", @"reagieren", @"reaktion", @"reaktionen", @"reaccionar", @"reacción", @"reacciones"]; });
-    return values;
-}
+// Each label table is built once and shared: scoring reads them for every scanned element.
+#define LABEL_TABLE(name, ...) static NSArray<NSString *> *name(void) { \
+    static NSArray<NSString *> *values; static dispatch_once_t once; \
+    dispatch_once(&once, ^{ values = @[__VA_ARGS__]; }); return values; }
 
-static NSArray<NSString *> *MuteLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"mute", @"mute mic", @"mute microphone", @"dempen", @"microfoon dempen", @"stummschalten", @"mikrofon stummschalten", @"désactiver le micro", @"silenciar", @"silenciar micrófono"]; });
-    return values;
-}
-
-static NSArray<NSString *> *UnmuteLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"unmute", @"unmute mic", @"unmute microphone", @"dempen opheffen", @"microfoon inschakelen", @"stummschaltung aufheben", @"mikrofon einschalten", @"activer le micro", @"reactivar audio", @"activar micrófono"]; });
-    return values;
-}
-
-static NSArray<NSString *> *CameraOffLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"turn camera off", @"stop video", @"camera uitschakelen", @"video stoppen", @"kamera ausschalten", @"désactiver la caméra", @"desactivar la cámara"]; });
-    return values;
-}
-
-static NSArray<NSString *> *CameraOnLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"turn camera on", @"start video", @"camera inschakelen", @"video starten", @"kamera einschalten", @"activer la caméra", @"activar la cámara"]; });
-    return values;
-}
-
-static NSArray<NSString *> *RaiseHandLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"raise your hand", @"raise hand", @"hand opsteken", @"steek uw hand op", @"hand heben", @"lever la main", @"levantar la mano"]; });
-    return values;
-}
-
-static NSArray<NSString *> *LowerHandLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"lower your hand", @"lower hand", @"hand omlaag", @"uw hand omlaag doen", @"hand senken", @"baisser la main", @"bajar la mano"]; });
-    return values;
-}
-
-static NSArray<NSString *> *LeaveLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"leave", @"leave call", @"hang up", @"verlaten", @"gesprek verlaten", @"auflegen", @"besprechung verlassen", @"quitter", @"quitter l'appel", @"salir", @"salir de la llamada"]; });
-    return values;
-}
-
-static NSArray<NSString *> *EffectsLauncherLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"open video options", @"video effects and settings", @"backgrounds and effects", @"effects and avatars", @"video effects", @"achtergronden en effecten", @"video-effecten", @"hintergründe und effekte", @"effets vidéo", @"arrière-plans et effets", @"fondos y efectos", @"efectos de vídeo"]; });
-    return values;
-}
-
-static NSArray<NSString *> *BlurLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"blur", @"standard blur", @"background blur", @"vervagen", @"achtergrond vervagen", @"weichzeichnen", @"hintergrund weichzeichnen", @"flou", @"flouter l’arrière-plan", @"desenfocar", @"desenfocar fondo"]; });
-    return values;
-}
-
-static NSArray<NSString *> *NoEffectLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"none", @"no effect", @"no background", @"no background effect", @"geen", @"geen effect", @"zonder achtergrond", @"keine", @"kein effekt", @"aucun", @"aucun effet", @"ninguno", @"sin efecto"]; });
-    return values;
-}
-
-static NSArray<NSString *> *ApplyLabels(void) {
-    static NSArray<NSString *> *values;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ values = @[@"apply", @"apply and turn on video", @"toepassen", @"toepassen en video inschakelen", @"anwenden", @"appliquer", @"aplicar"]; });
-    return values;
-}
+LABEL_TABLE(LauncherLabels, @"react", @"reaction", @"reactions", @"reageren", @"reactie", @"reacties", @"réagir", @"réaction", @"réactions", @"reagieren", @"reaktion", @"reaktionen", @"reaccionar", @"reacción", @"reacciones")
+LABEL_TABLE(MuteLabels, @"mute", @"mute mic", @"mute microphone", @"dempen", @"microfoon dempen", @"stummschalten", @"mikrofon stummschalten", @"désactiver le micro", @"silenciar", @"silenciar micrófono")
+LABEL_TABLE(UnmuteLabels, @"unmute", @"unmute mic", @"unmute microphone", @"dempen opheffen", @"microfoon inschakelen", @"stummschaltung aufheben", @"mikrofon einschalten", @"activer le micro", @"reactivar audio", @"activar micrófono")
+LABEL_TABLE(CameraOffLabels, @"turn camera off", @"stop video", @"camera uitschakelen", @"video stoppen", @"kamera ausschalten", @"désactiver la caméra", @"desactivar la cámara")
+LABEL_TABLE(CameraOnLabels, @"turn camera on", @"start video", @"camera inschakelen", @"video starten", @"kamera einschalten", @"activer la caméra", @"activar la cámara")
+LABEL_TABLE(RaiseHandLabels, @"raise your hand", @"raise hand", @"hand opsteken", @"steek uw hand op", @"hand heben", @"lever la main", @"levantar la mano")
+LABEL_TABLE(LowerHandLabels, @"lower your hand", @"lower hand", @"hand omlaag", @"uw hand omlaag doen", @"hand senken", @"baisser la main", @"bajar la mano")
+LABEL_TABLE(LeaveLabels, @"leave", @"leave call", @"hang up", @"verlaten", @"gesprek verlaten", @"auflegen", @"besprechung verlassen", @"quitter", @"quitter l'appel", @"salir", @"salir de la llamada")
+LABEL_TABLE(EffectsLauncherLabels, @"open video options", @"video effects and settings", @"backgrounds and effects", @"effects and avatars", @"video effects", @"achtergronden en effecten", @"video-effecten", @"hintergründe und effekte", @"effets vidéo", @"arrière-plans et effets", @"fondos y efectos", @"efectos de vídeo")
+LABEL_TABLE(BlurLabels, @"blur", @"standard blur", @"background blur", @"vervagen", @"achtergrond vervagen", @"weichzeichnen", @"hintergrund weichzeichnen", @"flou", @"flouter l’arrière-plan", @"desenfocar", @"desenfocar fondo")
+LABEL_TABLE(NoEffectLabels, @"none", @"no effect", @"no background", @"no background effect", @"geen", @"geen effect", @"zonder achtergrond", @"keine", @"kein effekt", @"aucun", @"aucun effet", @"ninguno", @"sin efecto")
+LABEL_TABLE(ShareLabels, @"share", @"delen", @"teilen", @"partager", @"compartir")
+LABEL_TABLE(StopSharingLabels, @"stop sharing", @"stop presenting", @"delen stoppen", @"stoppen met delen", @"freigabe beenden", @"arrêter le partage", @"dejar de compartir")
+LABEL_TABLE(ApplyLabels, @"apply", @"apply and turn on video", @"toepassen", @"toepassen en video inschakelen", @"anwenden", @"appliquer", @"aplicar")
 
 static void PrintUsage(const char *executablePath) {
     NSString *executable = [[NSString stringWithUTF8String:executablePath] lastPathComponent];
@@ -168,11 +101,9 @@ static void PrintUsage(const char *executablePath) {
     printf("  %s status|serve\n", executable.UTF8String);
     printf("  %s inspect-controls\n", executable.UTF8String);
     printf("  %s mute|unmute|camera-on|camera-off\n", executable.UTF8String);
-    printf("  %s blur-on|blur-off|blur-toggle|hand-raise|hand-lower|leave\n", executable.UTF8String);
+    printf("  %s blur-on|blur-off|blur-toggle|hand-raise|hand-lower|share-toggle|leave|leave-stay\n", executable.UTF8String);
     printf("  %s react like|love|applause|laugh|surprise\n", executable.UTF8String);
-    printf("  %s burst like|love|applause|laugh|surprise [rate]\n", executable.UTF8String);
     printf("  %s inspect\n\n", executable.UTF8String);
-    printf("Burst rate defaults to %ld and is capped at %ld attempts per second.\n", (long)BurstDefaultRate, (long)BurstMaximumRate);
     printf("inspect and inspect-controls do not press anything.\n");
 }
 
@@ -268,10 +199,7 @@ static void PopulateNode(AXNode *node, NSDictionary *attributes) {
 }
 
 static NSString *StringAttribute(AXUIElementRef element, CFStringRef attribute) {
-    id value = CopyAttribute(element, attribute);
-    if ([value isKindOfClass:NSString.class]) return value;
-    if ([value isKindOfClass:NSNumber.class]) return [value stringValue];
-    return @"";
+    return AttributeString(CopyAttribute(element, attribute));
 }
 
 static NSArray *ElementArrayAttribute(AXUIElementRef element, CFStringRef attribute) {
@@ -336,6 +264,8 @@ static void WalkElements(id root, NSArray *(^visit)(id element, NSInteger depth)
 
 static NSArray<AXNode *> *CollectElements(AXUIElementRef root, pid_t pid, NSString *processName, NSString *windowTitle, AXUIElementRef focusedWindow) {
     NSMutableArray<AXNode *> *result = [NSMutableArray array];
+    NSMutableSet *toolbarElements = [NSMutableSet set];
+    NSMapTable *parents = [NSMapTable strongToStrongObjectsMapTable];
     WalkElements((__bridge id)root, ^NSArray *(id object, NSInteger depth) {
         AXUIElementRef element = (__bridge AXUIElementRef)object;
         AXNode *node = [AXNode new];
@@ -348,6 +278,8 @@ static NSArray<AXNode *> *CollectElements(AXUIElementRef root, pid_t pid, NSStri
         node.actions = Actions(element);
         node.depth = depth;
         node.focusedWindow = SameElement(focusedWindow, root);
+        node.parent = [parents objectForKey:object];
+        node.inToolbar = [node.role isEqualToString:(__bridge NSString *)kAXToolbarRole] || [toolbarElements containsObject:object];
         [result addObject:node];
         id children = attributes[(__bridge NSString *)kAXChildrenAttribute];
         if (![children isKindOfClass:NSArray.class]) return @[];
@@ -355,6 +287,8 @@ static NSArray<AXNode *> *CollectElements(AXUIElementRef root, pid_t pid, NSStri
         for (id child in children) {
             if (CFGetTypeID((__bridge CFTypeRef)child) == AXUIElementGetTypeID()) [elements addObject:child];
         }
+        if (node.inToolbar) [toolbarElements addObjectsFromArray:elements];
+        for (id child in elements) [parents setObject:node forKey:child];
         return elements;
     });
     MarkMeetingReactionPicker(result);
@@ -531,6 +465,14 @@ static NSInteger EffectsLauncherScore(AXNode *node) {
     return score;
 }
 
+// Sharing adds a control bar with its own Stop sharing, so the toolbar's wins. Share
+// counts only in a toolbar, never a menu, so every match reads Stop sharing or Share.
+static NSInteger ShareScore(AXNode *node) {
+    if (![node.role isEqualToString:(__bridge NSString *)kAXButtonRole] || ![node.actions containsObject:(__bridge NSString *)kAXPressAction]) return NSIntegerMin;
+    if (!NodeMatchesAction(node, StopSharingLabels()) && (!node.inToolbar || !NodeMatchesAction(node, ShareLabels()))) return NSIntegerMin;
+    return BaseControlScore(node) + (node.inToolbar ? 40 : 0);
+}
+
 static BOOL IsOptionLabelOnly(AXNode *node) {
     return [node.role isEqualToString:(__bridge NSString *)kAXStaticTextRole] || [node.role isEqualToString:(__bridge NSString *)kAXImageRole];
 }
@@ -644,6 +586,10 @@ static NSString *CameraStateForNode(AXNode *node) {
     return @"unknown";
 }
 
+static NSString *ScreenShareStateForNode(AXNode *node) {
+    return NodeMatchesAction(node, StopSharingLabels()) ? @"on" : @"off";
+}
+
 static NSString *HandStateForNode(AXNode *node) {
     if (NodeMatchesAction(node, RaiseHandLabels())) return @"lowered";
     if (NodeMatchesAction(node, LowerHandLabels())) return @"raised";
@@ -702,14 +648,25 @@ static NSString *BlurSnapshotState(NSArray<AXNode *> *elements,
     return blurState;
 }
 
+static BOOL IsShareDialogue(AXNode *node) {
+    return [node.role isEqualToString:(__bridge NSString *)kAXGroupRole] && (EqualsAny(node.title, @[@"share content"]) || EqualsAny(node.nodeDescription, @[@"share content"]));
+}
+
 static BOOL ShareDialogueOpen(NSArray<AXNode *> *elements) {
-    for (AXNode *node in elements) if ([node.role isEqualToString:(__bridge NSString *)kAXGroupRole] && (EqualsAny(node.title, @[@"share content"]) || EqualsAny(node.nodeDescription, @[@"share content"]))) return YES;
+    for (AXNode *node in elements) if (IsShareDialogue(node)) return YES;
     return NO;
+}
+
+// Only a Stop sharing control is meeting evidence. Teams opens the Share content
+// dialogue only while not sharing, and that dialogue hides the toolbar.
+static NSString *ScreenShareSnapshotState(NSArray<AXNode *> *elements, BOOL meetingActive, AXNode *share, BOOL ambiguous) {
+    NSString *state = ControlFamilyState(meetingActive, share, ambiguous, ScreenShareStateForNode);
+    return meetingActive && [state isEqualToString:@"unavailable"] && ShareDialogueOpen(elements) ? @"off" : state;
 }
 
 static NSDictionary *StateSnapshot(NSDictionary *scan) {
     NSArray<AXNode *> *elements = scan[@"elements"];
-    BOOL micAmbiguous = NO, cameraAmbiguous = NO, handAmbiguous = NO, leaveAmbiguous = NO, launcherAmbiguous = NO, effectsAmbiguous = NO;
+    BOOL micAmbiguous = NO, cameraAmbiguous = NO, handAmbiguous = NO, leaveAmbiguous = NO, launcherAmbiguous = NO, effectsAmbiguous = NO, shareAmbiguous = NO;
     AXNode *microphone = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
         return MicrophoneScore(node);
     }, &micAmbiguous);
@@ -728,11 +685,13 @@ static NSDictionary *StateSnapshot(NSDictionary *scan) {
     AXNode *effects = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
         return EffectsLauncherScore(node);
     }, &effectsAmbiguous);
+    AXNode *share = BestUniqueNode(elements, ^NSInteger(AXNode *node) { return ShareScore(node); }, &shareAmbiguous);
+    BOOL sharing = share && [ScreenShareStateForNode(share) isEqualToString:@"on"];
     // The effects launcher alone does not mark a meeting active; an ambiguous
     // React launcher does, and so does Teams' Share content dialogue (an AXGroup), which hides the toolbar.
     BOOL meetingActive = microphone || camera || hand || leave || launcher
         || micAmbiguous || cameraAmbiguous || handAmbiguous || leaveAmbiguous
-        || launcherAmbiguous || ShareDialogueOpen(elements);
+        || launcherAmbiguous || sharing || ShareDialogueOpen(elements);
     NSString *microphoneState =
         ControlFamilyState(meetingActive, microphone, micAmbiguous, MicrophoneStateForNode);
     NSString *cameraState =
@@ -746,16 +705,17 @@ static NSDictionary *StateSnapshot(NSDictionary *scan) {
         @"camera": cameraState,
         @"backgroundBlur": blurState,
         @"hand": handState,
+        @"screenShare": ScreenShareSnapshotState(elements, meetingActive, share, shareAmbiguous),
     };
 }
 
 static NSArray<AXNode *> *StateControlNodes(NSDictionary *scan) {
     NSMutableArray *controls = [NSMutableArray array];
     for (AXNode *node in scan[@"elements"]) {
-        if (!node.canPress) continue;
+        if (!node.canPress && !IsShareDialogue(node)) continue;
         if (MicrophoneScore(node) > 0 || CameraScore(node) > 0 || HandScore(node) > 0
             || LauncherScore(node) > 0 || LeaveScore(node) > 0 || EffectsLauncherScore(node) > 0
-            || BlurOptionScore(node) > 0 || NoEffectOptionScore(node) > 0) [controls addObject:node];
+            || BlurOptionScore(node) > 0 || NoEffectOptionScore(node) > 0 || ShareScore(node) > 0 || IsShareDialogue(node)) [controls addObject:node];
     }
     return controls;
 }
@@ -769,6 +729,7 @@ static AXNode *RefreshNode(AXNode *node) {
     fresh.depth = node.depth;
     fresh.focusedWindow = node.focusedWindow;
     fresh.meetingReactionPicker = node.meetingReactionPicker;
+    fresh.inToolbar = node.inToolbar;
     PopulateNode(fresh, NodeAttributes(node.element));
     fresh.actions = Actions(node.element);
     return fresh;
@@ -963,12 +924,13 @@ static BOOL RefreshedControlsMatch(NSArray<AXNode *> *previous, NSArray<AXNode *
     for (NSUInteger index = 0; index < previous.count; index += 1) {
         AXNode *old = previous[index], *current = fresh[index];
         if (![old.role isEqualToString:current.role] || ![old.identifier isEqualToString:current.identifier]
-            || old.pid != current.pid || !current.canPress) return NO;
+            || old.pid != current.pid || (!current.canPress && !(IsShareDialogue(old) && IsShareDialogue(current)))) return NO;
         if ((MicrophoneScore(old) > 0 && MicrophoneScore(current) <= 0)
             || (CameraScore(old) > 0 && CameraScore(current) <= 0)
             || (HandScore(old) > 0 && HandScore(current) <= 0)
             || (LauncherScore(old) > 0 && LauncherScore(current) <= 0)
-            || (LeaveScore(old) > 0 && LeaveScore(current) <= 0)) return NO;
+            || (LeaveScore(old) > 0 && LeaveScore(current) <= 0)
+            || (ShareScore(old) > 0 && ShareScore(current) <= 0) || (IsShareDialogue(old) && !IsShareDialogue(current))) return NO;
     }
     return YES;
 }
@@ -1082,6 +1044,38 @@ static int PerformDesiredControl(NSString *command, NSString *desiredState, NSSt
     return 13;
 }
 
+static AXNode *LeaveDialogChild(NSArray<AXNode *> *elements, AXNode *group, NSString *label) {
+    for (AXNode *node in elements) {
+        if (node.parent != group || ![node.role isEqualToString:(__bridge NSString *)kAXButtonRole]) continue;
+        if ([node.actions containsObject:(__bridge NSString *)kAXPressAction] && (EqualsAny(node.nodeDescription, @[label]) || EqualsAny(node.title, @[label]))) return node;
+    }
+    return nil;
+}
+
+// Leaving while sharing, Teams asks "You’re currently sharing. Are you sure you want to
+// leave?" in a dialogue. Only that dialogue's own Stay and Leave buttons are returned.
+static AXNode *LeaveDialogButton(NSArray<AXNode *> *elements, NSString *label) {
+    for (AXNode *text in elements) {
+        if (![text.searchableText containsString:@"currently sharing"] || ![text.searchableText containsString:@"leave"]) continue;
+        AXNode *group = text.parent;
+        for (NSInteger level = 0; group && level < 3; level += 1, group = group.parent) {
+            if (LeaveDialogChild(elements, group, @"stay") && LeaveDialogChild(elements, group, @"leave")) return LeaveDialogChild(elements, group, label);
+        }
+    }
+    return nil;
+}
+
+// A tap on Leave answers Stay. Without the dialogue it presses nothing.
+static int PerformLeaveStay(void) {
+    NSDictionary *scan = ScanTeams();
+    AXNode *stay = LeaveDialogButton(scan[@"elements"], @"stay");
+    AXError error = stay ? PressNode(stay) : kAXErrorSuccess;
+    WriteJSON(ResultForScan(scan, @"leave-stay", stay && error == kAXErrorSuccess));
+    if (error == kAXErrorSuccess) return [scan[@"applicationCount"] integerValue] == 0 ? 2 : 0;
+    fprintf(stderr, "Could not press Stay: %s.\n", AXErrorDescription(error).UTF8String);
+    return 12;
+}
+
 static int PerformLeave(void) {
     NSDictionary *initialScan = ScanMeetingControls(NO);
     if ([initialScan[@"applicationCount"] integerValue] == 0) {
@@ -1095,7 +1089,9 @@ static int PerformLeave(void) {
         return 10;
     }
     BOOL ambiguous = NO;
-    AXNode *leave = BestUniqueNode(initialScan[@"elements"], ^NSInteger(AXNode *node) { return LeaveScore(node); }, &ambiguous);
+    // The leave-while-sharing dialogue's own Leave wins over the toolbar's.
+    AXNode *dialogueLeave = LeaveDialogButton(initialScan[@"elements"], @"leave");
+    AXNode *leave = dialogueLeave ?: BestUniqueNode(initialScan[@"elements"], ^NSInteger(AXNode *node) { return LeaveScore(node); }, &ambiguous);
     if (ambiguous) {
         WriteJSON(ResultForScan(initialScan, @"leave", NO));
         fprintf(stderr, "More than one equally plausible Leave control was exposed.\n");
@@ -1125,10 +1121,46 @@ static int PerformLeave(void) {
             WriteJSON(ResultForScan(currentScan, @"leave", YES));
             return 0;
         }
+        // The toolbar Leave opened the leave-while-sharing dialogue: hand back now so a tap can answer Stay.
+        if (!dialogueLeave && LeaveDialogButton(currentScan[@"elements"], @"leave")) break;
     } while (deadline.timeIntervalSinceNow > 0);
     WriteJSON(ResultForScan(currentScan, @"leave", YES));
+    if (!dialogueLeave && LeaveDialogButton(currentScan[@"elements"], @"leave")) {
+        fprintf(stderr, "Teams is asking to confirm leaving while sharing.\n");
+        return 15;
+    }
     fprintf(stderr, "Teams accepted Leave, but meeting controls were still present.\n");
     return 13;
+}
+
+// Share opens Teams' picker and leaves the choice to the user, so it confirms the
+// picker. Stop sharing must confirm the toolbar reads Share again.
+static int PerformShareToggle(void) {
+    NSDictionary *scan = ScanMeetingControls(NO);
+    NSString *state = StateSnapshot(scan)[@"screenShare"];
+    if ([state isEqualToString:@"on"]) return PerformDesiredControl(@"share-toggle", @"off", @"screen share", 14, ^NSInteger(AXNode *node) { return ShareScore(node); }, ^NSString *(AXNode *node) { return ScreenShareStateForNode(node); });
+    BOOL ambiguous = NO;
+    AXNode *share = BestUniqueNode(scan[@"elements"], ^NSInteger(AXNode *node) { return ShareScore(node); }, &ambiguous);
+    BOOL pickerOpen = ShareDialogueOpen(scan[@"elements"]);
+    if (pickerOpen || !share || ![state isEqualToString:@"off"]) {
+        WriteJSON(ResultForScan(scan, @"share-toggle", NO));
+        if (pickerOpen) return 0;
+        fprintf(stderr, "No safe Share control was found in the active Teams meeting.\n");
+        return [scan[@"applicationCount"] integerValue] == 0 ? 2 : (ambiguous ? 11 : 10);
+    }
+    ScrollNodeIntoView(share);
+    AXError error = PressNode(share);
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VerificationTimeout];
+    while (error == kAXErrorSuccess && !pickerOpen && deadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.12]];
+        scan = ScanTeams();
+        pickerOpen = ShareDialogueOpen(scan[@"elements"]);
+    }
+    WriteJSON(ResultForScan(scan, @"share-toggle", error == kAXErrorSuccess));
+    if (pickerOpen) return 0;
+    if (error != kAXErrorSuccess) fprintf(stderr, "Could not invoke the Share control: %s.\n", AXErrorDescription(error).UTF8String);
+    else fprintf(stderr, "Teams accepted Share, but its share picker did not appear.\n");
+    return error == kAXErrorSuccess ? 13 : 12;
 }
 
 static AXNode *FindEffectOption(NSArray<AXNode *> *elements, BOOL enable, NSSet *initialIdentities, BOOL *ambiguous) {
@@ -1302,6 +1334,9 @@ static int InspectControls(void) {
         } else if (NoEffectOptionScore(node) != NSIntegerMin) {
             control = @"no-effect";
             state = node.selected ? @"selected" : @"not-selected";
+        } else if (ShareScore(node) != NSIntegerMin) {
+            control = @"share";
+            state = ScreenShareStateForNode(node);
         } else if (LauncherScore(node) != NSIntegerMin) {
             control = @"reactions";
         }
@@ -1329,7 +1364,8 @@ static int Inspect(void) {
             || CameraScore(node) != NSIntegerMin
             || HandScore(node) != NSIntegerMin
             || LeaveScore(node) != NSIntegerMin
-            || EffectsLauncherScore(node) != NSIntegerMin;
+            || EffectsLauncherScore(node) != NSIntegerMin
+            || ShareScore(node) != NSIntegerMin;
         if (!relevant) continue;
         printf("[%s] role=%s actions=%s\n  %s\n", node.processName.UTF8String, node.role.UTF8String, [node.actions componentsJoinedByString:@","].UTF8String, node.displayText.UTF8String);
         printed += 1;
@@ -1441,87 +1477,6 @@ static int SendReaction(NSDictionary *reaction, NSString *commandName) {
     }
     WriteJSON(@{@"command": commandName, @"reaction": [reaction[@"name"] lowercaseString], @"changed": @YES, @"accessibilityAccepted": @1});
     return 0;
-}
-
-static BOOL BurstStopRequested(void) {
-    char buffer[64];
-    ssize_t count = read(STDIN_FILENO, buffer, sizeof(buffer));
-    if (count == 0 || count > 0) return YES;
-    return errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR;
-}
-
-static BOOL WaitForBurstTime(NSDate *start, NSTimeInterval targetElapsed) {
-    while (-start.timeIntervalSinceNow < targetElapsed) {
-        if (BurstStopRequested()) return NO;
-        NSTimeInterval remaining = targetElapsed + start.timeIntervalSinceNow;
-        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:MIN(0.01, remaining)]];
-    }
-    return !BurstStopRequested();
-}
-
-static NSTimeInterval NextBurstAttemptTime(NSTimeInterval previousPressTime, NSInteger rate) {
-    return MAX(BurstHoldThreshold, previousPressTime + 1.0 / (NSTimeInterval)rate);
-}
-
-static int BurstReaction(NSDictionary *reaction, NSInteger requestedRate) {
-    NSInteger rate = MAX(1, MIN(BurstMaximumRate, requestedRate));
-    int currentFlags = fcntl(STDIN_FILENO, F_GETFL);
-    if (currentFlags >= 0) fcntl(STDIN_FILENO, F_SETFL, currentFlags | O_NONBLOCK);
-    NSDate *start = [NSDate date];
-    NSInteger attempted = 0;
-    NSInteger accepted = 0;
-    NSString *stopReason = @"error";
-    int exitStatus = 0;
-    ReactionSession *session = nil;
-    int prepareStatus = PrepareReactionSession(reaction, &session);
-    if (prepareStatus != 0) {
-        exitStatus = prepareStatus;
-    } else {
-        attempted = 1;
-        NSTimeInterval firstPressTime = -start.timeIntervalSinceNow;
-        AXError firstError = PressReactionWithRecovery(^AXError { return PressNode(session.target); },
-            ^AXError { return ReacquireReactionTarget(session); },
-            ^BOOL { return -start.timeIntervalSinceNow < BurstDurationLimit; });
-        firstPressTime = -start.timeIntervalSinceNow;
-        if (firstError == kAXErrorSuccess) {
-            accepted = 1;
-            if (!WaitForBurstTime(start, BurstHoldThreshold)) {
-                stopReason = @"key-up";
-            } else {
-                NSTimeInterval nextAttempt = NextBurstAttemptTime(firstPressTime, rate);
-                while (YES) {
-                    NSTimeInterval elapsed = -start.timeIntervalSinceNow;
-                    if (elapsed >= BurstDurationLimit) { stopReason = @"duration-limit"; break; }
-                    if (attempted >= BurstMaximumAttempts) { stopReason = @"count-limit"; break; }
-                    if (!WaitForBurstTime(start, MIN(nextAttempt, BurstDurationLimit))) { stopReason = @"key-up"; break; }
-                    if (-start.timeIntervalSinceNow >= BurstDurationLimit) { stopReason = @"duration-limit"; break; }
-                    NSTimeInterval pressTime = -start.timeIntervalSinceNow;
-                    attempted += 1;
-                    AXError reactionError = PressReactionWithRecovery(^AXError { return PressNode(session.target); },
-                        ^AXError { return ReacquireReactionTarget(session); },
-                        ^BOOL { return !BurstStopRequested() && -start.timeIntervalSinceNow < BurstDurationLimit; });
-                    pressTime = -start.timeIntervalSinceNow;
-                    if (reactionError != kAXErrorSuccess) {
-                        if (BurstStopRequested()) { stopReason = @"key-up"; break; }
-                        if (-start.timeIntervalSinceNow >= BurstDurationLimit) { stopReason = @"duration-limit"; break; }
-                        stopReason = @"selection-error";
-                        exitStatus = 6;
-                        break;
-                    }
-                    accepted += 1;
-                    nextAttempt = NextBurstAttemptTime(pressTime, rate);
-                }
-            }
-        } else {
-            exitStatus = 6;
-        }
-    }
-    NSInteger elapsedMs = (NSInteger)llround((-start.timeIntervalSinceNow) * 1000.0);
-    NSString *reactionName = [reaction[@"name"] lowercaseString] ?: @"unknown";
-    NSString *finalStopReason = stopReason ?: @"error";
-    WriteJSON(@{@"command": @"burst", @"reaction": reactionName, @"attempted": @(attempted), @"accessibilityAccepted": @(accepted), @"elapsedMs": @(elapsedMs), @"stopReason": finalStopReason});
-    if (exitStatus != 0) fprintf(stderr, "The reaction burst stopped because Teams did not accept a reaction control.\n");
-    return exitStatus;
 }
 
 static NSMutableArray *PersistentObservers;
@@ -1748,18 +1703,17 @@ int main(int argc, const char *argv[]) {
             PrintUsage(argv[0]);
             return 0;
         }
-        NSSet<NSString *> *singleArgumentCommands = [NSSet setWithArray:@[@"serve", @"status", @"inspect", @"inspect-controls", @"mute", @"unmute", @"camera-on", @"camera-off", @"blur-on", @"blur-off", @"blur-toggle", @"hand-raise", @"hand-lower", @"leave"]];
+        NSSet<NSString *> *singleArgumentCommands = [NSSet setWithArray:@[@"serve", @"status", @"inspect", @"inspect-controls", @"mute", @"unmute", @"camera-on", @"camera-off", @"blur-on", @"blur-off", @"blur-toggle", @"hand-raise", @"hand-lower", @"share-toggle", @"leave", @"leave-stay"]];
         BOOL directReaction = ReactionDefinitions()[command] != nil;
         BOOL validArity = (argc == 2 && ([singleArgumentCommands containsObject:command] || directReaction))
-            || (argc == 3 && ([command isEqualToString:@"react"] || [command isEqualToString:@"burst"]))
-            || (argc == 4 && [command isEqualToString:@"burst"]);
+            || (argc == 3 && [command isEqualToString:@"react"]);
         if (!validArity) {
             fprintf(stderr, "Invalid command arguments.\n\n");
             PrintUsage(argv[0]);
             return 64;
         }
         NSDictionary *reaction = nil;
-        if ([command isEqualToString:@"react"] || [command isEqualToString:@"burst"]) {
+        if ([command isEqualToString:@"react"]) {
             NSString *reactionName = [[NSString stringWithUTF8String:argv[2]] lowercaseString];
             reaction = ReactionDefinitions()[reactionName];
             if (!reaction) {
@@ -1776,18 +1730,12 @@ int main(int argc, const char *argv[]) {
             if ([command isEqualToString:@"hand-raise"]) return PerformDesiredControl(command, @"raised", @"hand", 40, ^NSInteger(AXNode *node) { return HandScore(node); }, ^NSString *(AXNode *node) { return HandStateForNode(node); });
             if ([command isEqualToString:@"hand-lower"]) return PerformDesiredControl(command, @"lowered", @"hand", 40, ^NSInteger(AXNode *node) { return HandScore(node); }, ^NSString *(AXNode *node) { return HandStateForNode(node); });
             if ([command isEqualToString:@"leave"]) return PerformLeave();
+            if ([command isEqualToString:@"leave-stay"]) return PerformLeaveStay();
+            if ([command isEqualToString:@"share-toggle"]) return PerformShareToggle();
             if ([command isEqualToString:@"blur-on"]) return PerformBlur(1);
             if ([command isEqualToString:@"blur-off"]) return PerformBlur(0);
             if ([command isEqualToString:@"blur-toggle"]) return PerformBlur(-1);
             if ([command isEqualToString:@"react"]) return SendReaction(reaction, @"react");
-            if ([command isEqualToString:@"burst"]) {
-                NSInteger rate = argc == 4 ? [[NSString stringWithUTF8String:argv[3]] integerValue] : BurstDefaultRate;
-                if (rate < 1 || rate > BurstMaximumRate) {
-                    fprintf(stderr, "Burst rate must be between 1 and 10.\n");
-                    return 64;
-                }
-                return BurstReaction(reaction, rate);
-            }
             if (directReaction) return SendReaction(ReactionDefinitions()[command], @"react");
             fprintf(stderr, "Unknown command.\n");
             return 64;
