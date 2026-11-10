@@ -5,14 +5,10 @@ import { DEFAULT_REACTION, ReactionKeyController, reactionFromSettings, reaction
 
 const REACTIONS = ["like", "love", "applause", "laugh", "surprise"];
 
-function fakeKey(id = "key") {
+function fakeKey(id = "key", { fails = false } = {}) {
 	const calls = [];
-	return {
-		id,
-		calls,
-		showOk: async () => { calls.push("showOk"); },
-		showAlert: async () => { calls.push("showAlert"); },
-	};
+	const show = name => async () => { calls.push(name); if (fails) throw new Error("gone"); };
+	return { id, calls, showOk: show("showOk"), showAlert: show("showAlert") };
 }
 
 function fakeLogger() {
@@ -99,6 +95,15 @@ test("a completed reaction wave logs its result and confirms accepted attempts",
 	await flush();
 	assert.deepEqual(logger.lines, [["info", "Teams reaction burst laugh: attempted=4, accepted=3, elapsedMs=900, stop=released."]]);
 	assert.deepEqual(key.calls, ["showOk"]);
+});
+
+test("a key that cannot show the wave result logs instead of rejecting", async () => {
+	const { controller, logger } = setup();
+	const key = fakeKey("key", { fails: true });
+	await controller.keyDown(key, "love", false);
+	await flush();
+	assert.deepEqual(key.calls, ["showOk", "showAlert"]);
+	assert.deepEqual(logger.lines.at(-1), ["warn", "Could not show the result of the love reaction wave."]);
 });
 
 test("a reaction wave with no accepted attempts alerts", async () => {

@@ -67,7 +67,9 @@ export class ReactionKeyController {
 				await key.showAlert();
 				return;
 			}
-			void this.reportBurst(started.completion, key, reaction);
+			// The key can be gone by the time the wave ends, so a failed status indicator is only logged.
+			void this.reportBurst(started.completion, key, reaction)
+				.catch(() => this.logger.warn(`Could not show the result of the ${reaction} reaction wave.`));
 		} catch (error) {
 			this.logger.reportError(`Teams reaction burst ${reaction}`, error);
 			await key.showAlert();
