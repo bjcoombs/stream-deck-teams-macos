@@ -1,6 +1,5 @@
 import streamDeck, {
 	action,
-	type KeyAction,
 	type KeyDownEvent,
 	type KeyUpEvent,
 	type State,
@@ -9,140 +8,38 @@ import streamDeck, {
 	type WillDisappearEvent,
 } from "@elgato/streamdeck";
 
-import { type BlurState, HelperExecutionError, stickyBlur, type TeamsCommand, type TeamsState } from "../helper-runner";
+import { HelperExecutionError, type TeamsCommand } from "../helper-runner";
 import { HoldGate } from "../hold-gate";
 import { LEAVE_HOLD_MS, LeaveController } from "../leave-controller";
-import { commandCoordinator, operationLock, persistentControls } from "../teams-services";
-
-type StateField = "microphone" | "camera" | "backgroundBlur" | "hand";
-type KnownState = "muted" | "unmuted" | "on" | "off" | "raised" | "lowered";
-
-const UNKNOWN_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><rect width="144" height="144" rx="22" fill="#24262b"/><circle cx="72" cy="72" r="41" fill="none" stroke="#f0b429" stroke-width="9"/><text x="72" y="91" text-anchor="middle" font-family="Arial,sans-serif" font-size="58" font-weight="700" fill="#f0b429">?</text></svg>`;
-const UNAVAILABLE_IMAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><rect width="144" height="144" rx="22" fill="#24262b"/><circle cx="72" cy="72" r="42" fill="none" stroke="#777b84" stroke-width="9"/><path d="M42 102L102 42" stroke="#777b84" stroke-width="10" stroke-linecap="round"/></svg>`;
-
-function keyActionFromEvent(ev: WillAppearEvent | WillDisappearEvent): KeyAction | undefined {
-	return "setState" in ev.action ? ev.action as KeyAction : undefined;
-}
-
-function stateIndex(field: StateField, value: string): State | undefined {
-	const mappings: Record<StateField, readonly [KnownState, KnownState]> = {
-		microphone: ["unmuted", "muted"],
-		camera: ["on", "off"],
-		backgroundBlur: ["on", "off"],
-		hand: ["lowered", "raised"],
-	};
-	if (value === mappings[field][0]) return 0;
-	if (value === mappings[field][1]) return 1;
-	return undefined;
-}
-
-class StateSynchronizer {
-	private readonly visible = new Map<StateField, Map<string, KeyAction>>();
-	private refreshPromise: Promise<void> | undefined;
-	private blur: BlurState = "unknown";
-	latest: TeamsState | undefined;
-
-	constructor() {
-		persistentControls.subscribe(state => {
-			if (!operationLock.busy) void this.apply(state);
-		});
-	}
-
-	get hasVisibleControls(): boolean {
-		return [...this.visible.values()].some(actions => actions.size > 0);
-	}
-
-	register(context: string, field: StateField, actionInstance: KeyAction): void {
-		let actions = this.visible.get(field);
-		if (!actions) {
-			actions = new Map();
-			this.visible.set(field, actions);
-		}
-		actions.set(context, actionInstance);
-		persistentControls.retain(context);
-		void actionInstance.setImage(UNAVAILABLE_IMAGE);
-	}
-
-	unregister(context: string, field: StateField): void {
-		this.visible.get(field)?.delete(context);
-		persistentControls.release(context);
-		if (!this.hasVisibleControls) this.latest = undefined;
-	}
-
-	disconnectDevice(deviceID: string): void {
-		for (const [field, actions] of this.visible) {
-			for (const [context, actionInstance] of actions) {
-				if (actionInstance.device.id === deviceID) this.unregister(context, field);
-			}
-		}
-	}
-
-	async refresh(): Promise<void> {
-		if (this.refreshPromise) return this.refreshPromise;
-		this.refreshPromise = (async () => {
-			try {
-				const execution = await commandCoordinator.execute("status");
-				if (execution.status === "completed") await this.apply(execution.result);
-			} finally {
-				this.refreshPromise = undefined;
-			}
-		})();
-		return this.refreshPromise;
-	}
-
-	async apply(reported: TeamsState): Promise<void> {
-		this.blur = stickyBlur(this.blur, reported.backgroundBlur);
-		const result = { ...reported, backgroundBlur: this.blur };
-		this.latest = result;
-		const updates: Promise<unknown>[] = [];
-		for (const [field, actions] of this.visible) {
-			const value = result[field];
-			const index = stateIndex(field, value);
-			for (const actionInstance of actions.values()) {
-				if (index !== undefined) {
-					updates.push(actionInstance.setState(index), actionInstance.setImage());
-				} else {
-					updates.push(actionInstance.setImage(value === "unavailable" ? UNAVAILABLE_IMAGE : UNKNOWN_IMAGE));
-				}
-			}
-		}
-		await Promise.allSettled(updates);
-	}
-}
-
-export const stateSynchronizer = new StateSynchronizer();
+import { commandCoordinator } from "../teams-services";
+import { keyActionFromEvent, pressIgnored, type StateField, stateIndex, stateSynchronizer } from "./state-synchronizer";
 
 export abstract class ToggleCallControlAction extends SingletonAction {
 	protected abstract readonly field: StateField;
 	protected abstract readonly commands: readonly [TeamsCommand, TeamsCommand];
+	/** The key image whose dimmed twin shows while no meeting is active. */
+	protected abstract readonly restingImage: string;
 
 	override async onWillAppear(ev: WillAppearEvent): Promise<void> {
 		const actionInstance = keyActionFromEvent(ev);
 		if (!actionInstance) return;
-		stateSynchronizer.register(actionInstance.id, this.field, actionInstance);
-		try {
-			await stateSynchronizer.refresh();
-		} catch (error) {
-			logHelperError(`${this.field} state refresh`, error);
-		}
+		await stateSynchronizer.register(actionInstance.id, actionInstance, { field: this.field, restingImage: this.restingImage });
+		await refreshForKey(this.field);
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent): void {
-		stateSynchronizer.unregister(ev.action.id, this.field);
+		stateSynchronizer.unregister(ev.action.id);
 	}
 
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
+		if (pressIgnored()) return;
 		let desiredIndex: State;
 		if (ev.payload.isInMultiAction) {
 			desiredIndex = ev.payload.userDesiredState;
 		} else {
 			let currentIndex = stateSynchronizer.latest ? stateIndex(this.field, stateSynchronizer.latest[this.field]) : undefined;
 			if (currentIndex === undefined) {
-				try {
-					await stateSynchronizer.refresh();
-				} catch (error) {
-					logHelperError(`${this.field} state refresh`, error);
-				}
+				await refreshForKey(this.field);
 				currentIndex = stateSynchronizer.latest ? stateIndex(this.field, stateSynchronizer.latest[this.field]) : undefined;
 			}
 			if (currentIndex === undefined) {
@@ -177,6 +74,15 @@ export abstract class ToggleCallControlAction extends SingletonAction {
 	}
 }
 
+/** Reads Teams status for a key that just appeared; a failure is logged and leaves the key live. */
+export async function refreshForKey(name: string): Promise<void> {
+	try {
+		await stateSynchronizer.refresh();
+	} catch (error) {
+		logHelperError(`${name} state refresh`, error);
+	}
+}
+
 export function logHelperError(operation: string, error: unknown): void {
 	if (error instanceof HelperExecutionError) {
 		const exitCode = error.exitCode === null ? "unavailable" : String(error.exitCode);
@@ -190,18 +96,21 @@ export function logHelperError(operation: string, error: unknown): void {
 export class MuteAction extends ToggleCallControlAction {
 	protected readonly field = "microphone" as const;
 	protected readonly commands = ["unmute", "mute"] as const;
+	protected readonly restingImage = "imgs/actions/mute/muted";
 }
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.camera" })
 export class CameraAction extends ToggleCallControlAction {
 	protected readonly field = "camera" as const;
 	protected readonly commands = ["camera-on", "camera-off"] as const;
+	protected readonly restingImage = "imgs/actions/camera/off";
 }
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.hand" })
 export class HandAction extends ToggleCallControlAction {
 	protected readonly field = "hand" as const;
 	protected readonly commands = ["hand-lower", "hand-raise"] as const;
+	protected readonly restingImage = "imgs/actions/hand/lowered";
 }
 
 async function executeLeave(): Promise<{ status: "completed" | "busy" }> {
@@ -223,8 +132,9 @@ export function cancelPendingLeave(): void {
 
 @action({ UUID: "com.laurens-bolle.teams-reactions.leave" })
 export class LeaveAction extends SingletonAction {
-	override onKeyDown(ev: KeyDownEvent): Promise<void> {
-		return leaveController.keyDown(ev.action, ev.payload.isInMultiAction);
+	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
+		if (pressIgnored()) return;
+		await leaveController.keyDown(ev.action, ev.payload.isInMultiAction);
 	}
 
 	override onKeyUp(ev: KeyUpEvent): Promise<void> {
@@ -233,10 +143,14 @@ export class LeaveAction extends SingletonAction {
 
 	override async onWillAppear(ev: WillAppearEvent): Promise<void> {
 		const actionInstance = keyActionFromEvent(ev);
-		if (actionInstance) await leaveController.appear(actionInstance);
+		if (!actionInstance) return;
+		await leaveController.appear(actionInstance);
+		await stateSynchronizer.register(actionInstance.id, actionInstance, { restingImage: "imgs/actions/leave/leave" });
+		await refreshForKey("Leave");
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent): void {
 		leaveController.disappear(ev.action.id);
+		stateSynchronizer.unregister(ev.action.id);
 	}
 }

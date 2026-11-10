@@ -51,8 +51,8 @@ Accessibility accepted a reaction. A yellow alert means the control is unavailab
 ambiguous, busy, or failed.
 
 - The **Reaction** key sends Like, Love, Applause, Laugh, or Surprised. Choose
-  the reaction under **Emoji Reactions** in the key settings; the key image
-  follows the choice. New keys default to Like.
+  the reaction from the grid of reaction tiles under **Emoji Reactions** in the
+  key settings; the key image follows the choice. New keys default to Like.
 - Tap a reaction key to send once.
 - Hold it to repeat at 7 attempts per second, starting after about 300 ms.
 - Release to stop. Each hold is limited to five seconds, including picker setup.
@@ -67,6 +67,15 @@ ambiguous, busy, or failed.
   state it set and a question mark until the first press in a meeting.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
+
+While no Teams meeting is active, every key from this plugin shows a greyed
+image and a press does nothing: no Teams command, alert, or check mark. Keys go
+inactive only after two status reads at least two seconds apart both find no
+meeting and no open video effects panel, and never within three seconds of a
+Teams command. They come back on the first read that finds a meeting, or on any
+failed or unclear read. Releasing **Push to Talk** still mutes again if the
+meeting ends while the key is held. Reaction and Leave keys now also start the
+background status helper while they are on the deck, so their keys can dim too.
 
 Version `0.2.0.19` replaces the five separate reaction actions with the single
 **Reaction** action. The old Like, Love, Applause, Laugh, and Surprise actions

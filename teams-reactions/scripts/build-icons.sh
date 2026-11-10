@@ -12,6 +12,23 @@ if ! command -v rsvg-convert >/dev/null 2>&1; then
   echo "Install librsvg with Homebrew, then rerun npm run build:icons." >&2
   exit 1
 fi
+if ! command -v magick >/dev/null 2>&1; then
+  echo "ImageMagick (magick) is required to render the inactive key images." >&2
+  echo "Install imagemagick with Homebrew, then rerun npm run build:icons." >&2
+  exit 1
+fi
+
+# A key image and its greyed, translucent twin shown while no Teams meeting is active.
+render_key() {
+  source_svg=$1
+  output=$2
+  rsvg-convert -w 72 -h 72 -o "$output.png" "$source_svg"
+  rsvg-convert -w 144 -h 144 -o "$output@2x.png" "$source_svg"
+  for suffix in "" "@2x"; do
+    magick "$output$suffix.png" -colorspace Gray -channel A -evaluate multiply 0.45 +channel \
+      -define png:color-type=6 "$output-inactive$suffix.png"
+  done
+}
 
 mkdir -p "$plugin_images"
 rsvg-convert -w 256 -h 256 -o "$plugin_images/marketplace.png" "$assets_dir/plugin.svg"
@@ -24,8 +41,7 @@ for reaction in like love applause laugh surprise; do
   mkdir -p "$action_images"
   rsvg-convert -w 20 -h 20 -o "$action_images/icon.png" "$assets_dir/$reaction-icon.svg"
   rsvg-convert -w 40 -h 40 -o "$action_images/icon@2x.png" "$assets_dir/$reaction-icon.svg"
-  rsvg-convert -w 72 -h 72 -o "$action_images/key.png" "$assets_dir/$reaction-key.svg"
-  rsvg-convert -w 144 -h 144 -o "$action_images/key@2x.png" "$assets_dir/$reaction-key.svg"
+  render_key "$assets_dir/$reaction-key.svg" "$action_images/key"
 done
 
 render_control() {
@@ -37,8 +53,7 @@ render_control() {
   rsvg-convert -w 40 -h 40 -o "$action_images/icon@2x.png" "$assets_dir/$control-icon.svg"
   for state_asset in "$@"; do
     state_name=${state_asset#"$control-"}
-    rsvg-convert -w 72 -h 72 -o "$action_images/$state_name.png" "$assets_dir/$state_asset-key.svg"
-    rsvg-convert -w 144 -h 144 -o "$action_images/$state_name@2x.png" "$assets_dir/$state_asset-key.svg"
+    render_key "$assets_dir/$state_asset-key.svg" "$action_images/$state_name"
   done
 }
 

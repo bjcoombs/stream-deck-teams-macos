@@ -15,8 +15,8 @@ import {
 	LeaveAction,
 	MuteAction,
 	cancelPendingLeave,
-	stateSynchronizer,
 } from "./actions/call-controls";
+import { stateSynchronizer } from "./actions/state-synchronizer";
 import { BackgroundBlurAction } from "./actions/background-blur";
 import { PushToTalkAction, releaseAllPushToTalk } from "./actions/push-to-talk";
 import { persistentControls, reactionBurstCoordinator } from "./teams-services";

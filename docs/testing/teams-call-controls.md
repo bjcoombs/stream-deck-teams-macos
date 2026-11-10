@@ -115,7 +115,10 @@ The **Reaction** key sends whichever reaction its Property Inspector selects. It
 | Case | Expected result | Result |
 |---|---|---|
 | Add a new Reaction key | The Property Inspector shows Like selected and the key shows the Like image | Not run |
-| Open the Property Inspector | Each option shows its reaction icon beside the reaction name | Not run |
+| Open the Property Inspector | Five reaction tiles in a three by two grid with 48 px icons; the selected tile has a blue outline and no radio dots | Not run |
+| Hover a tile | The tooltip names the reaction (Like, Love, Applause, Laugh, Surprised) | Not run |
+| Tab into the grid, then use the arrow keys | Focus shows a white ring; arrows move and select the next reaction, and the key image follows | Not run |
+| Existing Reaction key set to Laugh before the update | After the update the Laugh tile is selected and the key still sends Laugh | Not run |
 | Select each of Love, Applause, Laugh, Surprised | The key image changes to that reaction without reopening the profile | Not run |
 | Tap the key after each selection | Teams sends a reaction attempt for the selected reaction only | Not run |
 | Hold the key with Love selected | A reaction wave of Love runs and stops on release, as for the fixed Love key | Not run |
@@ -124,6 +127,25 @@ The **Reaction** key sends whichever reaction its Property Inspector selects. It
 | Restart Stream Deck | The key keeps its selection and image | Not run |
 | Reaction key inside a Multi Action | One reaction attempt of the selected reaction | Not run |
 | Existing fixed reaction keys after the update | They still send their reaction; the fixed actions no longer appear in the action list | Not run |
+
+## Inactive keys without a meeting
+
+Version `0.2.0.20` greys every key and ignores presses while status finds no meeting. Use a profile with at least one key of every action, including a hidden fixed reaction key from before `0.2.0.19`.
+
+| Case | Expected result | Result |
+|---|---|---|
+| Open the profile with Teams running and no meeting | Every key turns grey within about three seconds | Not run |
+| Press each grey key, including Leave held for two seconds | Nothing happens in Teams; no alert or check mark; the log says the press was ignored | Not run |
+| Join a meeting | Every key returns to its live image within about two seconds; mute, camera and hand keys show the Teams state | Not run |
+| Leave the meeting from Teams | Keys turn grey within about five seconds | Not run |
+| Leave the meeting with the Leave Call key | The local participant leaves; keys turn grey within about seven seconds | Not run |
+| Press Background Blur five times in a row during a meeting | Blur flips each time and no key ever turns grey | Not run |
+| Open the Teams video effects panel for one second, then close it | No key turns grey | Not run |
+| Leave the Teams video effects panel open for 30 seconds | No key turns grey while blur or no-effect is shown as selected | Not run |
+| Hold Push to Talk, then end the meeting from Teams, then release | Release still runs the mute; Teams is muted if it is still in the meeting, otherwise one alert after the retries | Not run |
+| Quit Teams during a meeting | Keys stay live and show unavailable or alert on press, because a failed status read never makes keys inactive | Not run |
+| Profile with only Reaction keys and no meeting | The keys turn grey; presses do nothing | Not run |
+| Change a grey Reaction key's choice in the Property Inspector | The key shows the grey image of the new reaction | Not run |
 
 ## Compatibility and privacy
 

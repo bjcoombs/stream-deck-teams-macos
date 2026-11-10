@@ -1,6 +1,5 @@
 import streamDeck, {
 	action,
-	type KeyAction,
 	type KeyDownEvent,
 	type KeyUpEvent,
 	SingletonAction,
@@ -10,7 +9,8 @@ import streamDeck, {
 
 import { type MicrophoneCommandResult, PushToTalkController } from "../push-to-talk-controller";
 import { commandCoordinator } from "../teams-services";
-import { logHelperError, stateSynchronizer } from "./call-controls";
+import { logHelperError, refreshForKey } from "./call-controls";
+import { keyActionFromEvent, pressIgnored, stateSynchronizer } from "./state-synchronizer";
 
 function knownMicrophone(): string | undefined {
 	const microphone = stateSynchronizer.latest?.microphone;
@@ -48,26 +48,25 @@ export function releaseAllPushToTalk(): Promise<void> {
 /** Hold to unmute; release to mute again. The key shows the microphone state Teams reports. */
 @action({ UUID: "com.laurens-bolle.teams-reactions.push-to-talk" })
 export class PushToTalkAction extends SingletonAction {
-	override onKeyDown(ev: KeyDownEvent): Promise<void> {
-		return pushToTalkController.keyDown(ev.action, ev.payload.isInMultiAction);
+	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
+		if (pressIgnored()) return;
+		await pushToTalkController.keyDown(ev.action, ev.payload.isInMultiAction);
 	}
 
+	/** Never gated: a release must mute again even if the meeting ended during the hold. */
 	override onKeyUp(ev: KeyUpEvent): Promise<void> {
 		return pushToTalkController.keyUp(ev.action);
 	}
 
 	override async onWillAppear(ev: WillAppearEvent): Promise<void> {
-		if (!("setState" in ev.action)) return;
-		stateSynchronizer.register(ev.action.id, "microphone", ev.action as KeyAction);
-		try {
-			await stateSynchronizer.refresh();
-		} catch (error) {
-			logHelperError("Push to Talk state refresh", error);
-		}
+		const actionInstance = keyActionFromEvent(ev);
+		if (!actionInstance) return;
+		await stateSynchronizer.register(actionInstance.id, actionInstance, { field: "microphone", restingImage: "imgs/actions/push-to-talk/muted" });
+		await refreshForKey("Push to Talk");
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent): void {
 		void pushToTalkController.disappear(ev.action.id);
-		stateSynchronizer.unregister(ev.action.id, "microphone");
+		stateSynchronizer.unregister(ev.action.id);
 	}
 }
