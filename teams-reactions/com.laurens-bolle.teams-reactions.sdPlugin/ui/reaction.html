@@ -28,16 +28,51 @@
 			}
 			.options {
 				display: grid;
-				gap: 6px;
+				grid-template-columns: repeat(3, 64px);
+				grid-auto-rows: 64px;
+				gap: 8px;
 			}
-			label {
-				display: flex;
-				align-items: center;
-				gap: 6px;
+			.tile {
+				position: relative;
+				display: block;
 				cursor: pointer;
 			}
-			label img {
-				flex: none;
+			/* Visually hidden but focusable, so the radios keep their role and arrow-key navigation. */
+			.tile input {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				margin: 0;
+				opacity: 0;
+				pointer-events: none;
+			}
+			.face {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				box-sizing: border-box;
+				width: 100%;
+				height: 100%;
+				border: 2px solid #3d3d3d;
+				border-radius: 10px;
+				background: #3d3d3d;
+			}
+			.tile:hover .face {
+				border-color: #5a5a5a;
+			}
+			.face img {
+				display: block;
+				width: 48px;
+				height: 48px;
+			}
+			.tile input:checked + .face {
+				border-color: #4a9eff;
+				background: #24384f;
+				box-shadow: 0 0 0 1px #4a9eff;
+			}
+			.tile input:focus-visible + .face {
+				outline: 2px solid #ffffff;
+				outline-offset: 2px;
 			}
 			p {
 				margin: 12px 0 0 102px;
@@ -48,16 +83,16 @@
 	<body>
 		<form id="settings">
 			<fieldset>
-				<legend>Emoji Reactions</legend>
-				<div class="options">
-					<label><input type="radio" name="reaction" value="like" checked /><img src="../imgs/actions/like/key.png" width="24" height="24" alt="" /> Like</label>
-					<label><input type="radio" name="reaction" value="love" /><img src="../imgs/actions/love/key.png" width="24" height="24" alt="" /> Love</label>
-					<label><input type="radio" name="reaction" value="applause" /><img src="../imgs/actions/applause/key.png" width="24" height="24" alt="" /> Applause</label>
-					<label><input type="radio" name="reaction" value="laugh" /><img src="../imgs/actions/laugh/key.png" width="24" height="24" alt="" /> Laugh</label>
-					<label><input type="radio" name="reaction" value="surprise" /><img src="../imgs/actions/surprise/key.png" width="24" height="24" alt="" /> Surprised</label>
+				<legend id="reactions-label">Emoji Reactions</legend>
+				<div class="options" role="radiogroup" aria-labelledby="reactions-label">
+					<label class="tile" title="Like"><input type="radio" name="reaction" value="like" aria-label="Like" checked /><span class="face"><img src="../imgs/actions/like/key@2x.png" alt="" /></span></label>
+					<label class="tile" title="Love"><input type="radio" name="reaction" value="love" aria-label="Love" /><span class="face"><img src="../imgs/actions/love/key@2x.png" alt="" /></span></label>
+					<label class="tile" title="Applause"><input type="radio" name="reaction" value="applause" aria-label="Applause" /><span class="face"><img src="../imgs/actions/applause/key@2x.png" alt="" /></span></label>
+					<label class="tile" title="Laugh"><input type="radio" name="reaction" value="laugh" aria-label="Laugh" /><span class="face"><img src="../imgs/actions/laugh/key@2x.png" alt="" /></span></label>
+					<label class="tile" title="Surprised"><input type="radio" name="reaction" value="surprise" aria-label="Surprised" /><span class="face"><img src="../imgs/actions/surprise/key@2x.png" alt="" /></span></label>
 				</div>
 			</fieldset>
-			<p>Tap to send once. Hold for a reaction wave. The key shows the chosen reaction.</p>
+			<p>Each press sends the chosen reaction once. The key shows the chosen reaction.</p>
 		</form>
 		<script>
 			"use strict";

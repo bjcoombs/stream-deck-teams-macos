@@ -29,3 +29,25 @@ test("the fixed reaction actions stay installed but hidden from the action list"
 		assert.equal(actionFor(reaction)?.VisibleInActionsList, false, `${reaction} stays registered and hidden`);
 	}
 });
+
+test("every key image has a dimmed twin for when no meeting is active", async () => {
+	const pluginDir = new URL("../com.laurens-bolle.teams-reactions.sdPlugin/", import.meta.url);
+	const images = manifest.Actions.flatMap(a => a.States.map(state => state.Image));
+	assert.ok(images.length >= 16);
+	for (const image of images) {
+		for (const suffix of [".png", "@2x.png"]) {
+			await fs.access(new URL(`${image}-inactive${suffix}`, pluginDir));
+		}
+	}
+});
+
+test("every resting image an action names is a manifest key image", async () => {
+	const images = new Set(manifest.Actions.flatMap(a => a.States.map(state => state.Image)));
+	const actionsDir = new URL("../src/actions/", import.meta.url);
+	for (const name of await fs.readdir(actionsDir)) {
+		const text = await fs.readFile(new URL(name, actionsDir), "utf8");
+		for (const [, image] of text.matchAll(/restingImage(?: =|:) "([^"]+)"/g)) {
+			assert.ok(images.has(image), `${name} names ${image}, which is not a key image`);
+		}
+	}
+});

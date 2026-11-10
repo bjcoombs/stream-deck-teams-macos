@@ -80,50 +80,61 @@ Shortcut fallback is disabled by default. Run these cases from a development she
 
 Do not enable a fallback in the packaged plugin until every focus case passes and the post-action Accessibility scan confirms the requested state.
 
-## Reaction tap and hold
+## Reaction press
 
-The default hold rate is 7 attempts per second. Confirm the picker remains open during repeats, presses are spaced about 143 ms apart, and slow picker setup does not produce a catch-up burst.
+Since version `0.2.0.20` every reaction press sends exactly one reaction, whether the key is tapped or held. Teams has no hold-to-repeat reaction. The helper's Accessibility count is not a delivery count.
 
-For each rate, hold Love for five seconds. Count the values separately. The helper's Accessibility count is not a delivery count.
-
-| Attempts per second | Scheduled attempts | Accessibility accepted | Seen by second participant | Teams responsive | Result |
-|---:|---:|---:|---:|---|---|
-| 1 | Not run | Not run | Not run | Not run | Not run |
-| 2 | Not run | Not run | Not run | Not run | Not run |
-| 3 | Not run | Not run | Not run | Not run | Not run |
-| 5 | Not run | Not run | Not run | Not run | Not run |
-| 7 (default) | Not run | Not run | Not run | Not run | Not run |
-| 10 | Not run | Not run | Not run | Not run | Not run |
-
-Also verify:
-
-- A tap sends exactly one reaction.
-- Repeating starts only after the hold threshold.
-- Release stops within one in-flight attempt.
-- Holding beyond five seconds stops at the duration guard.
-- Changing profiles while holding stops the session.
-- Disconnecting the Stream Deck while holding stops the session.
-- Another reaction or call-control key cannot overlap the active session.
-- A Multi Action sends only one reaction.
-- Reactions disabled by the organizer produce one clear alert.
-- Ending the meeting stops without an orphaned helper or popover.
+| Case | Expected result | Result |
+|---|---|---|
+| Tap a reaction key | Exactly one reaction attempt; the key shows a check mark | Not run |
+| Hold a reaction key for three seconds | Exactly one reaction attempt, sent on press; release does nothing | Not run |
+| Press a reaction key while another Teams operation runs | One yellow alert; no reaction | Not run |
+| Reaction key inside a Multi Action | Exactly one reaction attempt | Not run |
+| Reactions disabled by the organizer | One clear alert | Not run |
+| End the meeting right after a press | No orphaned helper or open reaction picker | Not run |
 
 ## Reaction picker
 
-The **Reaction** key sends whichever reaction its Property Inspector selects. It shares the press path of the hidden fixed reaction keys, so the tap and hold cases above apply to it unchanged.
+The **Reaction** key sends whichever reaction its Property Inspector selects. It shares the press path of the hidden fixed reaction keys, so the reaction press cases above apply to it unchanged.
 
 | Case | Expected result | Result |
 |---|---|---|
 | Add a new Reaction key | The Property Inspector shows Like selected and the key shows the Like image | Not run |
-| Open the Property Inspector | Each option shows its reaction icon beside the reaction name | Not run |
+| Open the Property Inspector | No text mentions holding the key; five reaction tiles in a three by two grid with 48 px icons; the selected tile has a blue outline and no radio dots | Not run |
+| Hover a tile | The tooltip names the reaction (Like, Love, Applause, Laugh, Surprised) | Not run |
+| Tab into the grid, then use the arrow keys | Focus shows a white ring; arrows move and select the next reaction, and the key image follows | Not run |
+| Existing Reaction key set to Laugh before the update | After the update the Laugh tile is selected and the key still sends Laugh | Not run |
 | Select each of Love, Applause, Laugh, Surprised | The key image changes to that reaction without reopening the profile | Not run |
 | Tap the key after each selection | Teams sends a reaction attempt for the selected reaction only | Not run |
-| Hold the key with Love selected | A reaction wave of Love runs and stops on release, as for the fixed Love key | Not run |
+| Hold the key with Love selected | One Love reaction attempt, as for the fixed Love key | Not run |
 | Two Reaction keys set to different reactions | Each key sends its own reaction and shows its own image | Not run |
 | Switch profile away and back | The key keeps its selection and image | Not run |
 | Restart Stream Deck | The key keeps its selection and image | Not run |
 | Reaction key inside a Multi Action | One reaction attempt of the selected reaction | Not run |
 | Existing fixed reaction keys after the update | They still send their reaction; the fixed actions no longer appear in the action list | Not run |
+
+## Inactive keys without a meeting
+
+Since version `0.2.0.20` the plugin marks every key inactive and ignores presses while status finds no meeting. Version `0.2.0.21` rechecks status every two seconds while inactive, reads status before ignoring a press, and treats the Share content dialogue as a meeting. Version `0.2.0.22` dims inactive keys and keeps their colours; earlier versions turned them grey. Use a profile with at least one key of every action, including a hidden fixed reaction key from before `0.2.0.19`.
+
+| Case | Expected result | Result |
+|---|---|---|
+| Open the profile with Teams running and no meeting | Every key dims within about three seconds | Not run |
+| Press each dimmed key, including Leave held for two seconds | Nothing happens in Teams; no alert or check mark; the log says the press was ignored | Not run |
+| Join a meeting | Every key returns to its live image within about two seconds; mute, camera and hand keys show the Teams state | Failed on 0.2.0.20: keys stayed inactive. Not run on 0.2.0.21 |
+| Leave one call, wait until the keys are dim, then join another | Keys return to live within about two seconds without pressing anything | Not run |
+| Press a dimmed key straight after joining, before the keys turn live | The press runs normally after a short status read | Not run |
+| Hold Push to Talk on a dimmed key during a meeting and release it within 100 ms | Teams ends muted; the plugin never leaves the microphone unmuted | Not run |
+| Open Teams Share and wait 10 seconds before choosing | No key dims | Not run |
+| Leave the meeting from Teams | Keys dim within about five seconds | Not run |
+| Leave the meeting with the Leave Call key | The local participant leaves; keys dim within about seven seconds | Not run |
+| Press Background Blur five times in a row during a meeting | Blur flips each time and no key ever dims | Not run |
+| Open the Teams video effects panel for one second, then close it | No key dims | Not run |
+| Leave the Teams video effects panel open for 30 seconds | No key dims while blur or no-effect is shown as selected | Not run |
+| Hold Push to Talk, then end the meeting from Teams, then release | Release still runs the mute; Teams is muted if it is still in the meeting, otherwise one alert after the retries | Not run |
+| Quit Teams during a meeting | Keys stay live and show unavailable or alert on press, because a failed status read never makes keys inactive | Not run |
+| Profile with only Reaction keys and no meeting | The keys dim; presses do nothing | Not run |
+| Change a dimmed Reaction key's choice in the Property Inspector | The key shows the dimmed image of the new reaction | Not run |
 
 ## Compatibility and privacy
 
@@ -138,7 +149,9 @@ The **Reaction** key sends whichever reaction its Property Inspector selects. It
 
 ## Release decision
 
-Do not call the plugin production-ready until all core controls pass in both directions, Leave is proven safe for attendee and organizer roles, and the default 7-per-second reaction wave is confirmed by a second participant.
+Do not call the plugin production-ready until all core controls pass in both directions, Leave is proven safe for attendee and organizer roles, and single reaction attempts for all five reactions are confirmed by a second participant.
+
+The dated sections below are historical results. Reaction holds and waves they describe were removed from the plugin in version `0.2.0.20`.
 
 ## 2026-10-28 toolbar compatibility check
 

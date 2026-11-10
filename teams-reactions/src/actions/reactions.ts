@@ -2,7 +2,6 @@ import streamDeck, {
 	action,
 	type DidReceiveSettingsEvent,
 	type KeyDownEvent,
-	type KeyUpEvent,
 	SingletonAction,
 	type WillAppearEvent,
 	type WillDisappearEvent,
@@ -10,12 +9,11 @@ import streamDeck, {
 
 import type { Reaction } from "../helper-runner";
 import { ReactionKeyController, reactionFromSettings, reactionKeyImage } from "../reaction-key";
-import { reactionBurstCoordinator, reactionCoordinator } from "../teams-services";
-import { logHelperError } from "./call-controls";
+import { reactionCoordinator } from "../teams-services";
+import { logHelperError, refreshForKey } from "./call-controls";
+import { keyActionFromEvent, pressAllowed, stateSynchronizer } from "./state-synchronizer";
 
 const reactionKeyController = new ReactionKeyController({
-	startBurst: (id, reaction) => reactionBurstCoordinator.start(id, reaction),
-	stopBurst: id => reactionBurstCoordinator.stop(id),
 	sendOnce: reaction => reactionCoordinator.execute(reaction),
 }, {
 	info: message => streamDeck.logger.info(message),
@@ -23,21 +21,36 @@ const reactionKeyController = new ReactionKeyController({
 	reportError: logHelperError,
 });
 
-/** Shared key handling. Subclasses decide which reaction a press sends. */
+/** Shared key handling. Subclasses decide which reaction a press sends and how the key looks. */
 abstract class ReactionKeyAction extends SingletonAction {
 	/** Read on every press: a SingletonAction serves every key with its UUID. */
-	protected abstract reactionFor(ev: KeyDownEvent): Reaction;
+	protected abstract reactionFor(settings: unknown): Reaction;
+	/** The image the key shows while a meeting is active; undefined keeps the manifest image. */
+	protected abstract liveImage(reaction: Reaction): string | undefined;
 
-	override onKeyDown(ev: KeyDownEvent): Promise<void> {
-		return reactionKeyController.keyDown(ev.action, this.reactionFor(ev), ev.payload.isInMultiAction);
+	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
+		if (!(await pressAllowed())) return;
+		await reactionKeyController.keyDown(ev.action, this.reactionFor(ev.payload.settings));
 	}
 
-	override onKeyUp(ev: KeyUpEvent): void {
-		reactionKeyController.release(ev.action.id);
+	override async onWillAppear(ev: WillAppearEvent): Promise<void> {
+		if (!keyActionFromEvent(ev)) return;
+		await this.show(ev);
+		await refreshForKey("Reaction");
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent): void {
-		reactionKeyController.release(ev.action.id);
+		stateSynchronizer.unregister(ev.action.id);
+	}
+
+	protected async show(ev: WillAppearEvent | DidReceiveSettingsEvent): Promise<void> {
+		const actionInstance = keyActionFromEvent(ev);
+		if (!actionInstance) return;
+		const reaction = this.reactionFor(ev.payload.settings);
+		await stateSynchronizer.register(actionInstance.id, actionInstance, {
+			image: this.liveImage(reaction),
+			restingImage: reactionKeyImage(reaction),
+		});
 	}
 }
 
@@ -53,30 +66,25 @@ abstract class FixedReactionAction extends ReactionKeyAction {
 	protected override reactionFor(): Reaction {
 		return this.reaction;
 	}
+
+	protected override liveImage(): undefined {
+		return undefined;
+	}
 }
 
 /** One key whose Property Inspector chooses the reaction; the key image follows the choice. */
 @action({ UUID: "com.laurens-bolle.teams-reactions.reaction" })
 export class ReactionPickerAction extends ReactionKeyAction {
-	protected override reactionFor(ev: KeyDownEvent): Reaction {
-		return reactionFromSettings(ev.payload.settings);
+	protected override reactionFor(settings: unknown): Reaction {
+		return reactionFromSettings(settings);
 	}
 
-	override onWillAppear(ev: WillAppearEvent): Promise<void> {
-		return this.showReaction(ev);
+	protected override liveImage(reaction: Reaction): string {
+		return reactionKeyImage(reaction);
 	}
 
 	override onDidReceiveSettings(ev: DidReceiveSettingsEvent): Promise<void> {
-		return this.showReaction(ev);
-	}
-
-	private async showReaction(ev: WillAppearEvent | DidReceiveSettingsEvent): Promise<void> {
-		if (!ev.action.isKey()) return;
-		try {
-			await ev.action.setImage(reactionKeyImage(reactionFromSettings(ev.payload.settings)));
-		} catch {
-			streamDeck.logger.warn("Could not update the Reaction key image.");
-		}
+		return this.show(ev);
 	}
 }
 

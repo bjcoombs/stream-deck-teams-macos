@@ -158,6 +158,24 @@ static void TestLiveEffectsPanel(int *failures) {
     Expect(!ResolveBlurToggle(@{@"applicationCount": @1, @"elements": @[]}, &toggle, &enable) && toggle, @"toggle must wait while the panel is closed", failures);
 }
 
+// Teams hides the toolbar behind its Share content dialogue, which must still read as a meeting.
+static void TestShareDialogue(int *failures) {
+    AXNode *dialogue = Button(@"Share content", @"", 12);
+    dialogue.role = (__bridge NSString *)kAXGroupRole;
+    dialogue.actions = @[];
+    ExpectState(@[dialogue], @"meetingActive", @YES, @"an open Share content dialogue must read as an active meeting", failures);
+    AXNode *described = Button(@"", @"", 12);
+    described.role = (__bridge NSString *)kAXGroupRole;
+    described.nodeDescription = @"Share content";
+    ExpectState(@[described], @"meetingActive", @YES, @"a Share content dialogue labelled by its description must read as an active meeting", failures);
+    AXNode *button = Button(@"Share content", @"", 12);
+    ExpectState(@[button], @"meetingActive", @NO, @"a Share content button alone is not meeting evidence", failures);
+    AXNode *other = Button(@"Share files", @"", 12);
+    other.role = (__bridge NSString *)kAXGroupRole;
+    ExpectState(@[other], @"meetingActive", @NO, @"another group must not read as a meeting", failures);
+    ExpectState(@[], @"meetingActive", @NO, @"no elements must not read as a meeting", failures);
+}
+
 int main(void) {
     @autoreleasepool {
         int failures = 0;
@@ -167,6 +185,7 @@ int main(void) {
         TestControlFamilyState(&failures);
         TestAXErrorDescription(&failures);
         TestLiveEffectsPanel(&failures);
+        TestShareDialogue(&failures);
 
         __block NSInteger reactionPresses = 0;
         __block NSInteger reacquisitions = 0;

@@ -1,14 +1,14 @@
 {
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"Name": "Teams Meeting Controls",
-	"Version": "0.2.0.19",
+	"Version": "0.2.0.22",
 	"Author": "Laurens Bolle",
 	"Actions": [
 		{
 			"Name": "Reaction",
 			"UUID": "com.laurens-bolle.teams-reactions.reaction",
 			"Icon": "imgs/actions/like/icon",
-			"Tooltip": "Send the reaction chosen in the key settings. Hold the key for a short reaction wave.",
+			"Tooltip": "Send the reaction chosen in the key settings.",
 			"PropertyInspectorPath": "ui/reaction.html",
 			"Controllers": [
 				"Keypad"
@@ -26,7 +26,7 @@
 			"Name": "Like",
 			"UUID": "com.laurens-bolle.teams-reactions.like",
 			"Icon": "imgs/actions/like/icon",
-			"Tooltip": "Send a Like reaction. Hold the key for a short reaction wave.",
+			"Tooltip": "Send a Like reaction.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -44,7 +44,7 @@
 			"Name": "Love",
 			"UUID": "com.laurens-bolle.teams-reactions.love",
 			"Icon": "imgs/actions/love/icon",
-			"Tooltip": "Send a Love reaction. Hold the key for a short reaction wave.",
+			"Tooltip": "Send a Love reaction.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -62,7 +62,7 @@
 			"Name": "Applause",
 			"UUID": "com.laurens-bolle.teams-reactions.applause",
 			"Icon": "imgs/actions/applause/icon",
-			"Tooltip": "Send an Applause reaction. Hold the key for a short reaction wave.",
+			"Tooltip": "Send an Applause reaction.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -80,7 +80,7 @@
 			"Name": "Laugh",
 			"UUID": "com.laurens-bolle.teams-reactions.laugh",
 			"Icon": "imgs/actions/laugh/icon",
-			"Tooltip": "Send a Laugh reaction. Hold the key for a short reaction wave.",
+			"Tooltip": "Send a Laugh reaction.",
 			"Controllers": [
 				"Keypad"
 			],
@@ -98,7 +98,7 @@
 			"Name": "Surprise",
 			"UUID": "com.laurens-bolle.teams-reactions.surprise",
 			"Icon": "imgs/actions/surprise/icon",
-			"Tooltip": "Send a Surprise reaction. Hold the key for a short reaction wave.",
+			"Tooltip": "Send a Surprise reaction.",
 			"Controllers": [
 				"Keypad"
 			],

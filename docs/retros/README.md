@@ -10,3 +10,4 @@ the change that now enforces it (a test, a lint rule, a checklist row, or an
 ## Entries
 
 - [2026-11-06 Leave Call fired on a single tap](2026-11-06-leave-single-tap.md)
+- [2026-11-10 Keys stayed inactive during a meeting](2026-11-10-inactive-keys-stuck.md)

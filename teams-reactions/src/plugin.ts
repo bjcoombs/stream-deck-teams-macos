@@ -15,11 +15,11 @@ import {
 	LeaveAction,
 	MuteAction,
 	cancelPendingLeave,
-	stateSynchronizer,
 } from "./actions/call-controls";
+import { stateSynchronizer } from "./actions/state-synchronizer";
 import { BackgroundBlurAction } from "./actions/background-blur";
 import { PushToTalkAction, releaseAllPushToTalk } from "./actions/push-to-talk";
-import { persistentControls, reactionBurstCoordinator } from "./teams-services";
+import { persistentControls } from "./teams-services";
 
 streamDeck.logger.setLevel("info");
 
@@ -38,13 +38,11 @@ streamDeck.actions.registerAction(new LeaveAction());
 
 streamDeck.devices.onDeviceDidDisconnect(ev => {
 	cancelPendingLeave();
-	reactionBurstCoordinator.stopAll();
 	stateSynchronizer.disconnectDevice(ev.device.id);
 	if (!stateSynchronizer.hasVisibleControls) persistentControls.stop();
 	// After stop(): a fail-safe mute waits for the helper to exit and starts a fresh one.
 	void releaseAllPushToTalk();
 });
-streamDeck.system.onApplicationDidTerminate(() => reactionBurstCoordinator.stopAll());
 streamDeck.system.onSystemDidWakeUp(() => {
 	cancelPendingLeave();
 	// Invalidate first: a fail-safe mute must not go to a helper connection that slept.
@@ -52,14 +50,13 @@ streamDeck.system.onSystemDidWakeUp(() => {
 	void releaseAllPushToTalk();
 	if (stateSynchronizer.hasVisibleControls) void stateSynchronizer.refresh().catch(() => streamDeck.logger.warn("Teams state refresh after wake failed."));
 });
-process.once("beforeExit", () => { reactionBurstCoordinator.stopAll(); persistentControls.stop(); });
+process.once("beforeExit", () => persistentControls.stop());
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
-	process.once(signal, () => { reactionBurstCoordinator.stopAll(); persistentControls.stop(); process.exit(0); });
+	process.once(signal, () => { persistentControls.stop(); process.exit(0); });
 }
 
 streamDeck.connect().then(() => {
 	watchPluginConnection(() => streamDeck.settings.getGlobalSettings(), () => {
-		reactionBurstCoordinator.stopAll();
 		persistentControls.stop();
 		process.exit(0);
 	});

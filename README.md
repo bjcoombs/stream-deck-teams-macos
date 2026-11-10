@@ -51,12 +51,11 @@ Accessibility accepted a reaction. A yellow alert means the control is unavailab
 ambiguous, busy, or failed.
 
 - The **Reaction** key sends Like, Love, Applause, Laugh, or Surprised. Choose
-  the reaction under **Emoji Reactions** in the key settings; the key image
-  follows the choice. New keys default to Like.
-- Tap a reaction key to send once.
-- Hold it to repeat at 7 attempts per second, starting after about 300 ms.
-- Release to stop. Each hold is limited to five seconds, including picker setup.
-- Reactions in Multi Actions send once. Only one Teams operation runs at a time.
+  the reaction from the grid of reaction tiles under **Emoji Reactions** in the
+  key settings; the key image follows the choice. New keys default to Like.
+- Each press of a reaction key sends exactly one reaction, whether tapped or
+  held; Teams has no hold-to-repeat reaction. Only one Teams operation runs at a
+  time.
 - Hold **Push to Talk** to unmute a muted microphone; release to mute it again.
   If the microphone was already unmuted, the key changes nothing. Release,
   removing the key, disconnecting the device, and system wake all mute again.
@@ -67,6 +66,18 @@ ambiguous, busy, or failed.
   state it set and a question mark until the first press in a meeting.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
+
+While no Teams meeting is active, every key from this plugin shows a dimmed
+image that keeps its colours, and a press does nothing: no Teams command,
+alert, or check mark. Keys go
+inactive only after two status reads at least two seconds apart both find no
+meeting and no open video effects panel, and never within three seconds of a
+Teams command. They come back on the first read that finds a meeting, or on any
+failed or unclear read; while dimmed, the plugin reads status every two seconds.
+A press on a dimmed key reads status first and runs if a meeting is active. An
+open Teams Share picker counts as a meeting. Releasing **Push to Talk** still mutes again if the
+meeting ends while the key is held. Reaction and Leave keys now also start the
+background status helper while they are on the deck, so their keys can dim too.
 
 Version `0.2.0.19` replaces the five separate reaction actions with the single
 **Reaction** action. The old Like, Love, Applause, Laugh, and Surprise actions
@@ -87,15 +98,15 @@ and the Accessibility hash collision fix.
 Live checks confirmed microphone and camera changes and a reaction tap with Teams
 in the background; earlier helper checks confirmed both hand commands.
 
-Leave safety, minimized/compact and multiple meeting windows, extended reaction
-holds on this build, and delivery to another participant still need qualification.
+Leave safety, minimized/compact and multiple meeting windows, and delivery to
+another participant still need qualification.
 See the [testing checklist and results](docs/testing/teams-call-controls.md) for
 measurements and the full list of verified and unverified cases.
 
 ## Documentation
 
 - [Development](docs/development.md): builds, packaging, tests, helper commands, and shortcut experiments
-- [Architecture](docs/architecture.md): helper lifecycle, control discovery, reaction sessions, and protocol
+- [Architecture](docs/architecture.md): helper lifecycle, control discovery, reaction presses, the inactive-key decision, and protocol
 - [Installation and troubleshooting](docs/troubleshooting.md): permissions, reloads, and update verification
 - [Design research](docs/research/teams-call-controls.md): alternatives and technical decisions
 - [Teams companion app research](docs/research/teams-app-companion.md): whether a Teams Store app could expose meeting controls to Stream Deck
