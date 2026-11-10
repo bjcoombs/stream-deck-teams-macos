@@ -145,7 +145,7 @@ Version `0.2.0.20` greys every key and ignores presses while status finds no mee
 
 ## Release decision
 
-Do not call the plugin production-ready until all core controls pass in both directions, Leave is proven safe for attendee and organizer roles, and the default 7-per-second reaction wave is confirmed by a second participant.
+Do not call the plugin production-ready until all core controls pass in both directions, Leave is proven safe for attendee and organizer roles, and single reaction attempts for all five reactions are confirmed by a second participant.
 
 The dated sections below are historical results. Reaction holds and waves they describe were removed from the plugin in version `0.2.0.20`.
 

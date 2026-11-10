@@ -151,6 +151,8 @@ class StateSynchronizer {
 			return;
 		}
 		await action.setState(index);
+		// A status read during setState may have made keys inactive and drawn the dimmed image.
+		if (!meetingActivity.active) return;
 		await action.setImage();
 	}
 }

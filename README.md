@@ -103,7 +103,7 @@ measurements and the full list of verified and unverified cases.
 ## Documentation
 
 - [Development](docs/development.md): builds, packaging, tests, helper commands, and shortcut experiments
-- [Architecture](docs/architecture.md): helper lifecycle, control discovery, reaction sessions, and protocol
+- [Architecture](docs/architecture.md): helper lifecycle, control discovery, reaction presses, the inactive-key decision, and protocol
 - [Installation and troubleshooting](docs/troubleshooting.md): permissions, reloads, and update verification
 - [Design research](docs/research/teams-call-controls.md): alternatives and technical decisions
 - [Teams companion app research](docs/research/teams-app-companion.md): whether a Teams Store app could expose meeting controls to Stream Deck
