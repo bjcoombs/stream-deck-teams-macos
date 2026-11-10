@@ -58,7 +58,10 @@ ambiguous, busy, or failed.
   If the microphone was already unmuted, the key changes nothing. Release,
   removing the key, disconnecting the device, and system wake all mute again.
   Push to Talk is refused in Multi Actions.
-- **Background Blur** turns Teams standard blur on or off.
+- **Background Blur** turns Teams standard blur on or off. Teams shows the
+  blur state only inside its video effects panel, so each press briefly opens
+  that panel, switches the effect and closes it again. The key shows the last
+  state it set and a question mark until the first press in a meeting.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
 

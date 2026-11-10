@@ -168,7 +168,7 @@ static void PrintUsage(const char *executablePath) {
     printf("  %s status|serve\n", executable.UTF8String);
     printf("  %s inspect-controls\n", executable.UTF8String);
     printf("  %s mute|unmute|camera-on|camera-off\n", executable.UTF8String);
-    printf("  %s blur-on|blur-off|hand-raise|hand-lower|leave\n", executable.UTF8String);
+    printf("  %s blur-on|blur-off|blur-toggle|hand-raise|hand-lower|leave\n", executable.UTF8String);
     printf("  %s react like|love|applause|laugh|surprise\n", executable.UTF8String);
     printf("  %s burst like|love|applause|laugh|surprise [rate]\n", executable.UTF8String);
     printf("  %s inspect\n\n", executable.UTF8String);
@@ -263,6 +263,8 @@ static void PopulateNode(AXNode *node, NSDictionary *attributes) {
     node.customDescription = CustomDescription(attributes[@"AXCustomContent"]);
     node.value = AttributeString(attributes[(__bridge NSString *)kAXValueAttribute]);
     node.selected = AttributeBoolean(attributes[(__bridge NSString *)kAXSelectedAttribute]);
+    // Teams marks the chosen background menu item with AXValue 1, not AXSelected.
+    if ([node.role isEqualToString:(__bridge NSString *)kAXMenuItemRole]) node.selected = node.selected || [node.value isEqualToString:@"1"];
 }
 
 static NSString *StringAttribute(AXUIElementRef element, CFStringRef attribute) {
@@ -529,8 +531,12 @@ static NSInteger EffectsLauncherScore(AXNode *node) {
     return score;
 }
 
+static BOOL IsOptionLabelOnly(AXNode *node) {
+    return [node.role isEqualToString:(__bridge NSString *)kAXStaticTextRole] || [node.role isEqualToString:(__bridge NSString *)kAXImageRole];
+}
+
 static NSInteger BlurOptionScore(AXNode *node) {
-    if (![node.actions containsObject:(__bridge NSString *)kAXPressAction]) return NSIntegerMin;
+    if (![node.actions containsObject:(__bridge NSString *)kAXPressAction] || IsOptionLabelOnly(node)) return NSIntegerMin;
     if (!NodeMatchesAction(node, BlurLabels())) return NSIntegerMin;
     NSInteger score = BaseControlScore(node);
     NSString *identifier = node.identifier.lowercaseString;
@@ -540,7 +546,7 @@ static NSInteger BlurOptionScore(AXNode *node) {
 }
 
 static NSInteger NoEffectOptionScore(AXNode *node) {
-    if (![node.actions containsObject:(__bridge NSString *)kAXPressAction]) return NSIntegerMin;
+    if (![node.actions containsObject:(__bridge NSString *)kAXPressAction] || IsOptionLabelOnly(node)) return NSIntegerMin;
     if (!NodeMatchesAction(node, NoEffectLabels())) return NSIntegerMin;
     NSInteger score = BaseControlScore(node);
     NSString *identifier = node.identifier.lowercaseString;
@@ -1141,16 +1147,33 @@ static AXNode *FindEffectOption(NSArray<AXNode *> *elements, BOOL enable, NSSet 
     }, ambiguous);
 }
 
-static int PerformBlur(BOOL enable) {
-    NSString *command = enable ? @"blur-on" : @"blur-off";
-    NSString *desired = enable ? @"on" : @"off";
+// Teams exposes the selected background only while the effects panel is open, so a
+// toggle learns its direction from the first scan that shows the panel.
+static BOOL ResolveBlurToggle(NSDictionary *scan, BOOL *toggle, BOOL *enable) {
+    if (!*toggle) return YES;
+    NSString *state = StateSnapshot(scan)[@"backgroundBlur"];
+    if (![state isEqualToString:@"on"] && ![state isEqualToString:@"off"]) return NO;
+    *toggle = NO;
+    *enable = [state isEqualToString:@"off"];
+    return YES;
+}
+
+static void CloseEffectsPanel(AXNode *launcher) {
+    if (launcher) PostTeamsKey(launcher.pid, 53 /* Escape */, 0);
+}
+
+static int PerformBlur(NSInteger request) {
+    BOOL toggle = request < 0;
+    BOOL enable = request > 0;
+    NSString *command = toggle ? @"blur-toggle" : (enable ? @"blur-on" : @"blur-off");
     NSDictionary *initialScan = ScanTeams();
     if ([initialScan[@"applicationCount"] integerValue] == 0) {
         WriteJSON(ResultForScan(initialScan, command, NO));
         fprintf(stderr, "Microsoft Teams is not running.\n");
         return 2;
     }
-    if ([StateSnapshot(initialScan)[@"backgroundBlur"] isEqualToString:desired]) {
+    ResolveBlurToggle(initialScan, &toggle, &enable);
+    if (!toggle && [StateSnapshot(initialScan)[@"backgroundBlur"] isEqualToString:(enable ? @"on" : @"off")]) {
         WriteJSON(ResultForScan(initialScan, command, NO));
         return 0;
     }
@@ -1160,7 +1183,8 @@ static int PerformBlur(BOOL enable) {
         ? ^NSInteger(AXNode *node) { return BlurOptionScore(node); }
         : ^NSInteger(AXNode *node) { return NoEffectOptionScore(node); };
     BOOL targetAmbiguous = NO;
-    AXNode *target = BestUniqueNode(initialScan[@"elements"], targetScorer, &targetAmbiguous);
+    AXNode *target = toggle ? nil : BestUniqueNode(initialScan[@"elements"], targetScorer, &targetAmbiguous);
+    AXNode *openedLauncher = nil;
     if (targetAmbiguous) {
         WriteJSON(ResultForScan(initialScan, command, NO));
         fprintf(stderr, "The requested video effect was ambiguous.\n");
@@ -1181,10 +1205,12 @@ static int PerformBlur(BOOL enable) {
             ScrollNodeIntoView(launcher);
             lastLauncherError = PressNode(launcher);
             if (lastLauncherError != kAXErrorSuccess) continue;
+            openedLauncher = launcher;
             NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:MenuTimeout];
             do {
                 [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.12]];
                 currentScan = ScanTeams();
+                if (!ResolveBlurToggle(currentScan, &toggle, &enable)) continue;
                 targetAmbiguous = NO;
                 target = FindEffectOption(currentScan[@"elements"], enable, initialIdentities, &targetAmbiguous);
                 if (targetAmbiguous) break;
@@ -1202,6 +1228,7 @@ static int PerformBlur(BOOL enable) {
         }
     }
     if (!target) {
+        CloseEffectsPanel(openedLauncher);
         WriteJSON(ResultForScan(currentScan, command, NO));
         fprintf(stderr, "The requested video effect was not available.\n");
         return 14;
@@ -1231,11 +1258,13 @@ static int PerformBlur(BOOL enable) {
     do {
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.12]];
         currentScan = ScanTeams();
-        if ([StateSnapshot(currentScan)[@"backgroundBlur"] isEqualToString:desired]) {
+        if ([StateSnapshot(currentScan)[@"backgroundBlur"] isEqualToString:(enable ? @"on" : @"off")]) {
+            CloseEffectsPanel(openedLauncher);
             WriteJSON(ResultForScan(currentScan, command, YES));
             return 0;
         }
     } while (deadline.timeIntervalSinceNow > 0);
+    CloseEffectsPanel(openedLauncher);
     NSMutableDictionary *result = ResultForScan(currentScan, command, YES);
     result[@"backgroundBlur"] = @"unknown";
     WriteJSON(result);
@@ -1717,7 +1746,7 @@ int main(int argc, const char *argv[]) {
             PrintUsage(argv[0]);
             return 0;
         }
-        NSSet<NSString *> *singleArgumentCommands = [NSSet setWithArray:@[@"serve", @"status", @"inspect", @"inspect-controls", @"mute", @"unmute", @"camera-on", @"camera-off", @"blur-on", @"blur-off", @"hand-raise", @"hand-lower", @"leave"]];
+        NSSet<NSString *> *singleArgumentCommands = [NSSet setWithArray:@[@"serve", @"status", @"inspect", @"inspect-controls", @"mute", @"unmute", @"camera-on", @"camera-off", @"blur-on", @"blur-off", @"blur-toggle", @"hand-raise", @"hand-lower", @"leave"]];
         BOOL directReaction = ReactionDefinitions()[command] != nil;
         BOOL validArity = (argc == 2 && ([singleArgumentCommands containsObject:command] || directReaction))
             || (argc == 3 && ([command isEqualToString:@"react"] || [command isEqualToString:@"burst"]))
@@ -1745,8 +1774,9 @@ int main(int argc, const char *argv[]) {
             if ([command isEqualToString:@"hand-raise"]) return PerformDesiredControl(command, @"raised", @"hand", 40, ^NSInteger(AXNode *node) { return HandScore(node); }, ^NSString *(AXNode *node) { return HandStateForNode(node); });
             if ([command isEqualToString:@"hand-lower"]) return PerformDesiredControl(command, @"lowered", @"hand", 40, ^NSInteger(AXNode *node) { return HandScore(node); }, ^NSString *(AXNode *node) { return HandStateForNode(node); });
             if ([command isEqualToString:@"leave"]) return PerformLeave();
-            if ([command isEqualToString:@"blur-on"]) return PerformBlur(YES);
-            if ([command isEqualToString:@"blur-off"]) return PerformBlur(NO);
+            if ([command isEqualToString:@"blur-on"]) return PerformBlur(1);
+            if ([command isEqualToString:@"blur-off"]) return PerformBlur(0);
+            if ([command isEqualToString:@"blur-toggle"]) return PerformBlur(-1);
             if ([command isEqualToString:@"react"]) return SendReaction(reaction, @"react");
             if ([command isEqualToString:@"burst"]) {
                 NSInteger rate = argc == 4 ? [[NSString stringWithUTF8String:argv[3]] integerValue] : BurstDefaultRate;

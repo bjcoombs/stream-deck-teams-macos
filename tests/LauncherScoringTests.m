@@ -129,6 +129,35 @@ static void TestAXErrorDescription(int *failures) {
         @"unknown AX errors must fall back to the numeric description", failures);
 }
 
+// Live Teams effects panel (November 2026): options are AXMenuItems whose AXValue
+// is 1 when chosen, and the label text inside each item is pressable too.
+static void TestLiveEffectsPanel(int *failures) {
+    AXNode *item = Button(@"Standard blur", @"", 18);
+    PopulateNode(item, @{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXMenuItemRole, (__bridge NSString *)kAXTitleAttribute: @"Standard blur", (__bridge NSString *)kAXValueAttribute: @1});
+    Expect(item.selected, @"a menu item with AXValue 1 must read as selected", failures);
+    AXNode *none = Button(@"No background effect", @"", 17);
+    PopulateNode(none, @{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXMenuItemRole, (__bridge NSString *)kAXTitleAttribute: @"No background effect", (__bridge NSString *)kAXValueAttribute: @0});
+    Expect(!none.selected, @"a menu item with AXValue 0 must read as not selected", failures);
+    AXNode *button = Button(@"Standard blur", @"", 18);
+    PopulateNode(button, @{(__bridge NSString *)kAXRoleAttribute: (__bridge NSString *)kAXButtonRole, (__bridge NSString *)kAXTitleAttribute: @"Standard blur", (__bridge NSString *)kAXValueAttribute: @1});
+    Expect(!button.selected, @"AXValue 1 marks selection only on menu items", failures);
+    AXNode *text = Button(@"", @"", 19);
+    text.role = (__bridge NSString *)kAXStaticTextRole;
+    text.value = @"Standard blur";
+    Expect(BlurOptionScore(text) == NSIntegerMin, @"pressable label text must not compete with its blur menu item", failures);
+    AXNode *image = Button(@"Background effect Standard blur", @"", 19);
+    image.role = (__bridge NSString *)kAXImageRole;
+    Expect(BlurOptionScore(image) == NSIntegerMin && NoEffectOptionScore(image) == NSIntegerMin, @"effect thumbnails must not be pressed as options", failures);
+    BOOL ambiguous = NO;
+    AXNode *best = BestUniqueNode(@[item, text], ^NSInteger(AXNode *node) { return BlurOptionScore(node); }, &ambiguous);
+    Expect(best == item && !ambiguous, @"blur must resolve to the menu item when its label text is pressable", failures);
+    ExpectState(@[item, none], @"backgroundBlur", @"on", @"a chosen blur menu item must report blur on", failures);
+    BOOL toggle = YES, enable = NO;
+    Expect(ResolveBlurToggle(@{@"applicationCount": @1, @"elements": @[item, none]}, &toggle, &enable) && !toggle && !enable, @"toggle with blur on must turn blur off", failures);
+    toggle = YES;
+    Expect(!ResolveBlurToggle(@{@"applicationCount": @1, @"elements": @[]}, &toggle, &enable) && toggle, @"toggle must wait while the panel is closed", failures);
+}
+
 int main(void) {
     @autoreleasepool {
         int failures = 0;
@@ -137,6 +166,7 @@ int main(void) {
         TestHandSnapshotState(&failures);
         TestControlFamilyState(&failures);
         TestAXErrorDescription(&failures);
+        TestLiveEffectsPanel(&failures);
 
         __block NSInteger reactionPresses = 0;
         __block NSInteger reacquisitions = 0;
