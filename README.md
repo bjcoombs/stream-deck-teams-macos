@@ -68,7 +68,7 @@ ambiguous, busy, or failed.
 - Hold **Leave Call** for 1.5 seconds to leave. The key turns red while armed;
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
 
-Version `0.2.0.18` replaces the five separate reaction actions with the single
+Version `0.2.0.19` replaces the five separate reaction actions with the single
 **Reaction** action. The old Like, Love, Applause, Laugh, and Surprise actions
 are hidden from the action list but stay installed, so keys already on a profile
 keep working unchanged. To move one to the new action, add a **Reaction** key and
