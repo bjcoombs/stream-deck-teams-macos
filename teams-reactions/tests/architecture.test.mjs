@@ -87,10 +87,20 @@ test("every Teams key-down is gated while no meeting is active, and no release i
 		assert.ok(keyDowns.length > 0, `${name} handles key-down`);
 		for (const method of keyDowns) {
 			const body = method.slice(0, method.indexOf("\n\t}"));
-			assert.match(body, /if \(pressIgnored\(\)\) return;/, `${name} onKeyDown must check pressIgnored() first`);
+			assert.match(body, /if \(!\(await pressAllowed\([^)]*\)\)\) return;/, `${name} onKeyDown must check pressAllowed() first`);
 		}
 		for (const method of methods.filter(m => /^(async )?(onKeyUp|onWillDisappear)\(/.test(m))) {
-			assert.doesNotMatch(method.slice(0, method.indexOf("\n\t}")), /pressIgnored/, `${name} must never gate a release`);
+			assert.doesNotMatch(method.slice(0, method.indexOf("\n\t}")), /pressAllowed/, `${name} must never gate a release`);
 		}
+	}
+});
+
+test("hold keys cancel an inactive-state press when released during its status read", async () => {
+	const pushToTalk = await fs.readFile(path.join(pluginRoot, "src", "actions", "push-to-talk.ts"), "utf8");
+	const controls = await fs.readFile(path.join(pluginRoot, "src", "actions", "call-controls.ts"), "utf8");
+	const leave = controls.slice(controls.indexOf("export class LeaveAction"));
+	for (const [name, text] of [["Push to Talk", pushToTalk], ["Leave", leave]]) {
+		assert.match(text, /pressAllowed\(ev\.action\.id\)/, `${name} must pass its context to pressAllowed`);
+		assert.match(text, /onKeyUp\(ev: KeyUpEvent\)[^}]*keyReleased\(ev\.action\.id\)/, `${name} must call keyReleased on key-up`);
 	}
 });

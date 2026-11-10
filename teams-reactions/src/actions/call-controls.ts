@@ -12,7 +12,7 @@ import { HelperExecutionError, type TeamsCommand } from "../helper-runner";
 import { HoldGate } from "../hold-gate";
 import { LEAVE_HOLD_MS, LeaveController } from "../leave-controller";
 import { commandCoordinator } from "../teams-services";
-import { keyActionFromEvent, pressIgnored, type StateField, stateIndex, stateSynchronizer } from "./state-synchronizer";
+import { keyActionFromEvent, keyReleased, pressAllowed, type StateField, stateIndex, stateSynchronizer } from "./state-synchronizer";
 
 export abstract class ToggleCallControlAction extends SingletonAction {
 	protected abstract readonly field: StateField;
@@ -32,7 +32,7 @@ export abstract class ToggleCallControlAction extends SingletonAction {
 	}
 
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-		if (pressIgnored()) return;
+		if (!(await pressAllowed())) return;
 		let desiredIndex: State;
 		if (ev.payload.isInMultiAction) {
 			desiredIndex = ev.payload.userDesiredState;
@@ -133,11 +133,12 @@ export function cancelPendingLeave(): void {
 @action({ UUID: "com.laurens-bolle.teams-reactions.leave" })
 export class LeaveAction extends SingletonAction {
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-		if (pressIgnored()) return;
+		if (!(await pressAllowed(ev.action.id))) return;
 		await leaveController.keyDown(ev.action, ev.payload.isInMultiAction);
 	}
 
 	override onKeyUp(ev: KeyUpEvent): Promise<void> {
+		keyReleased(ev.action.id);
 		return leaveController.keyUp(ev.action);
 	}
 

@@ -702,14 +702,14 @@ static NSString *BlurSnapshotState(NSArray<AXNode *> *elements,
     return blurState;
 }
 
+static BOOL ShareDialogueOpen(NSArray<AXNode *> *elements) {
+    for (AXNode *node in elements) if ([node.role isEqualToString:(__bridge NSString *)kAXGroupRole] && (EqualsAny(node.title, @[@"share content"]) || EqualsAny(node.nodeDescription, @[@"share content"]))) return YES;
+    return NO;
+}
+
 static NSDictionary *StateSnapshot(NSDictionary *scan) {
     NSArray<AXNode *> *elements = scan[@"elements"];
-    BOOL micAmbiguous = NO;
-    BOOL cameraAmbiguous = NO;
-    BOOL handAmbiguous = NO;
-    BOOL leaveAmbiguous = NO;
-    BOOL launcherAmbiguous = NO;
-    BOOL effectsAmbiguous = NO;
+    BOOL micAmbiguous = NO, cameraAmbiguous = NO, handAmbiguous = NO, leaveAmbiguous = NO, launcherAmbiguous = NO, effectsAmbiguous = NO;
     AXNode *microphone = BestUniqueNode(elements, ^NSInteger(AXNode *node) {
         return MicrophoneScore(node);
     }, &micAmbiguous);
@@ -729,10 +729,10 @@ static NSDictionary *StateSnapshot(NSDictionary *scan) {
         return EffectsLauncherScore(node);
     }, &effectsAmbiguous);
     // The effects launcher alone does not mark a meeting active; an ambiguous
-    // React launcher does.
+    // React launcher does, and so does Teams' Share content dialogue (an AXGroup), which hides the toolbar.
     BOOL meetingActive = microphone || camera || hand || leave || launcher
         || micAmbiguous || cameraAmbiguous || handAmbiguous || leaveAmbiguous
-        || launcherAmbiguous;
+        || launcherAmbiguous || ShareDialogueOpen(elements);
     NSString *microphoneState =
         ControlFamilyState(meetingActive, microphone, micAmbiguous, MicrophoneStateForNode);
     NSString *cameraState =

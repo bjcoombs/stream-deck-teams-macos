@@ -72,7 +72,9 @@ image and a press does nothing: no Teams command, alert, or check mark. Keys go
 inactive only after two status reads at least two seconds apart both find no
 meeting and no open video effects panel, and never within three seconds of a
 Teams command. They come back on the first read that finds a meeting, or on any
-failed or unclear read. Releasing **Push to Talk** still mutes again if the
+failed or unclear read; while grey, the plugin reads status every two seconds.
+A press on a grey key reads status first and runs if a meeting is active. An
+open Teams Share picker counts as a meeting. Releasing **Push to Talk** still mutes again if the
 meeting ends while the key is held. Reaction and Leave keys now also start the
 background status helper while they are on the deck, so their keys can dim too.
 

@@ -2,7 +2,7 @@ import streamDeck, { action, type KeyDownEvent } from "@elgato/streamdeck";
 
 import { commandCoordinator } from "../teams-services";
 import { logHelperError, ToggleCallControlAction } from "./call-controls";
-import { pressIgnored, stateSynchronizer } from "./state-synchronizer";
+import { pressAllowed, stateSynchronizer } from "./state-synchronizer";
 
 /**
  * Turns Teams background blur on or off. Teams shows the current blur only inside
@@ -20,7 +20,7 @@ export class BackgroundBlurAction extends ToggleCallControlAction {
 		if (ev.payload.isInMultiAction) {
 			return super.onKeyDown(ev);
 		}
-		if (pressIgnored()) return;
+		if (!(await pressAllowed())) return;
 		try {
 			const execution = await commandCoordinator.execute("blur-toggle");
 			if (execution.status === "busy") {

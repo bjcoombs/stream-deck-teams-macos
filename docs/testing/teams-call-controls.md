@@ -115,13 +115,17 @@ The **Reaction** key sends whichever reaction its Property Inspector selects. It
 
 ## Inactive keys without a meeting
 
-Version `0.2.0.20` greys every key and ignores presses while status finds no meeting. Use a profile with at least one key of every action, including a hidden fixed reaction key from before `0.2.0.19`.
+Since version `0.2.0.20` the plugin greys every key and ignores presses while status finds no meeting. Version `0.2.0.21` rechecks status every two seconds while inactive, reads status before ignoring a press, and treats the Share content dialogue as a meeting. Use a profile with at least one key of every action, including a hidden fixed reaction key from before `0.2.0.19`.
 
 | Case | Expected result | Result |
 |---|---|---|
 | Open the profile with Teams running and no meeting | Every key turns grey within about three seconds | Not run |
 | Press each grey key, including Leave held for two seconds | Nothing happens in Teams; no alert or check mark; the log says the press was ignored | Not run |
-| Join a meeting | Every key returns to its live image within about two seconds; mute, camera and hand keys show the Teams state | Not run |
+| Join a meeting | Every key returns to its live image within about two seconds; mute, camera and hand keys show the Teams state | Failed on 0.2.0.20: keys stayed grey. Not run on 0.2.0.21 |
+| Leave one call, wait until the keys are grey, then join another | Keys return to live within about two seconds without pressing anything | Not run |
+| Press a grey key straight after joining, before the keys turn live | The press runs normally after a short status read | Not run |
+| Hold Push to Talk on a grey key during a meeting and release it within 100 ms | Teams ends muted; the plugin never leaves the microphone unmuted | Not run |
+| Open Teams Share and wait 10 seconds before choosing | No key turns grey | Not run |
 | Leave the meeting from Teams | Keys turn grey within about five seconds | Not run |
 | Leave the meeting with the Leave Call key | The local participant leaves; keys turn grey within about seven seconds | Not run |
 | Press Background Blur five times in a row during a meeting | Blur flips each time and no key ever turns grey | Not run |

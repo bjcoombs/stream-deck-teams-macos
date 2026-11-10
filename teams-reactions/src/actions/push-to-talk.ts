@@ -10,7 +10,7 @@ import streamDeck, {
 import { type MicrophoneCommandResult, PushToTalkController } from "../push-to-talk-controller";
 import { commandCoordinator } from "../teams-services";
 import { logHelperError, refreshForKey } from "./call-controls";
-import { keyActionFromEvent, pressIgnored, stateSynchronizer } from "./state-synchronizer";
+import { keyActionFromEvent, keyReleased, pressAllowed, stateSynchronizer } from "./state-synchronizer";
 
 function knownMicrophone(): string | undefined {
 	const microphone = stateSynchronizer.latest?.microphone;
@@ -49,12 +49,13 @@ export function releaseAllPushToTalk(): Promise<void> {
 @action({ UUID: "com.laurens-bolle.teams-reactions.push-to-talk" })
 export class PushToTalkAction extends SingletonAction {
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-		if (pressIgnored()) return;
+		if (!(await pressAllowed(ev.action.id))) return;
 		await pushToTalkController.keyDown(ev.action, ev.payload.isInMultiAction);
 	}
 
 	/** Never gated: a release must mute again even if the meeting ended during the hold. */
 	override onKeyUp(ev: KeyUpEvent): Promise<void> {
+		keyReleased(ev.action.id);
 		return pushToTalkController.keyUp(ev.action);
 	}
 

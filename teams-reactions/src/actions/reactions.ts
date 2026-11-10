@@ -11,7 +11,7 @@ import type { Reaction } from "../helper-runner";
 import { ReactionKeyController, reactionFromSettings, reactionKeyImage } from "../reaction-key";
 import { reactionCoordinator } from "../teams-services";
 import { logHelperError, refreshForKey } from "./call-controls";
-import { keyActionFromEvent, pressIgnored, stateSynchronizer } from "./state-synchronizer";
+import { keyActionFromEvent, pressAllowed, stateSynchronizer } from "./state-synchronizer";
 
 const reactionKeyController = new ReactionKeyController({
 	sendOnce: reaction => reactionCoordinator.execute(reaction),
@@ -29,7 +29,7 @@ abstract class ReactionKeyAction extends SingletonAction {
 	protected abstract liveImage(reaction: Reaction): string | undefined;
 
 	override async onKeyDown(ev: KeyDownEvent): Promise<void> {
-		if (pressIgnored()) return;
+		if (!(await pressAllowed())) return;
 		await reactionKeyController.keyDown(ev.action, this.reactionFor(ev.payload.settings));
 	}
 

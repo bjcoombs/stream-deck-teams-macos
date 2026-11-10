@@ -39,15 +39,33 @@ export function stateIndex(field: StateField, value: string): State | undefined 
 	return undefined;
 }
 
+const heldKeys = new Set<string>();
+
 /**
- * True, after logging, when a key press must do nothing because no Teams meeting
- * is active. Only key-down presses check this: a release always runs, so Push
- * to Talk still mutes and an armed Leave still disarms.
+ * Resolves true when a key-down may run. While no meeting is active it reads
+ * status first and runs the press if that read shows a meeting. Hold keys pass
+ * their context and call keyReleased on key-up, so a release during the read
+ * cancels the press. Only key-down presses check this: a release always runs,
+ * so Push to Talk still mutes and an armed Leave still disarms.
  */
-export function pressIgnored(): boolean {
-	if (meetingActivity.active) return false;
-	streamDeck.logger.info("Ignored a key press because no Teams meeting is active.");
-	return true;
+export async function pressAllowed(holdContext?: string): Promise<boolean> {
+	if (holdContext) heldKeys.add(holdContext);
+	const allowed = await meetingActivity.admitPress(
+		() => stateSynchronizer.refresh(),
+		() => holdContext === undefined || heldKeys.has(holdContext),
+	);
+	if (holdContext) heldKeys.delete(holdContext);
+	if (!allowed) {
+		streamDeck.logger.info(meetingActivity.active
+			? "Ignored a held key released before the Teams status read finished."
+			: "Ignored a key press because no Teams meeting is active.");
+	}
+	return allowed;
+}
+
+/** Hold keys call this on key-up, before handling the release. */
+export function keyReleased(context: string): void {
+	heldKeys.delete(context);
 }
 
 class StateSynchronizer {
@@ -73,13 +91,17 @@ class StateSynchronizer {
 	register(context: string, action: KeyAction, look: KeyLook): Promise<void> {
 		this.keys.set(context, { ...look, action });
 		persistentControls.retain(context);
+		if (this.keys.size === 1) meetingActivity.setWatching(true);
 		return this.render(this.keys.get(context) as RegisteredKey);
 	}
 
 	unregister(context: string): void {
 		this.keys.delete(context);
 		persistentControls.release(context);
-		if (!this.hasVisibleControls) this.latest = undefined;
+		if (!this.hasVisibleControls) {
+			this.latest = undefined;
+			meetingActivity.setWatching(false);
+		}
 	}
 
 	disconnectDevice(deviceID: string): void {

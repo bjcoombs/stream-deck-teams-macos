@@ -9,6 +9,9 @@
  *   Background Blur opens that panel. A status still showing a blur selection is
  *   therefore not evidence, and no status counts while a command runs, within
  *   COMMAND_HOLD_MS after it, or as the first one after it.
+ * - While inactive, status is read again every RECHECK_MS, because Teams may
+ *   publish nothing when a meeting starts. A press while inactive reads status
+ *   first and runs if that read shows a meeting.
  */
 import type { TeamsState } from "./helper-runner";
 
@@ -16,6 +19,8 @@ import type { TeamsState } from "./helper-runner";
 export const CONFIRM_DELAY_MS = 2_000;
 /** After a command ends, no status counts towards inactive for this long. */
 export const COMMAND_HOLD_MS = 3_000;
+/** While inactive and keys are visible, status is read again this often until it shows a meeting. */
+export const RECHECK_MS = 2_000;
 
 export type ActivityClock = {
 	now(): number;
@@ -48,6 +53,8 @@ export class MeetingActivity {
 	private skipNextStatus = false;
 	private evidenceDuringCommand = false;
 	private cancelConfirmation: (() => void) | undefined;
+	private cancelRecheck: (() => void) | undefined;
+	private watching = true;
 	private confirm: () => void = () => undefined;
 
 	constructor(clock: ActivityClock) {
@@ -61,6 +68,28 @@ export class MeetingActivity {
 	/** Sets the status read that a pending confirmation runs. Its result must come back through reportStatus. */
 	confirmWith(confirm: () => void): void {
 		this.confirm = confirm;
+	}
+
+	/** Whether any key is visible. Rechecks run only while one is. */
+	setWatching(watching: boolean): void {
+		this.watching = watching;
+		this.stopRechecks();
+		if (watching && !this.live) this.recheckAfter(RECHECK_MS);
+	}
+
+	/**
+	 * Decides a key-down. While inactive it reads status first, so a press never
+	 * fails on stale state. A hold key passes `stillHeld` so a key released during
+	 * the read does not start a hold that no release will end.
+	 */
+	async admitPress(refresh: () => Promise<void>, stillHeld: () => boolean = () => true): Promise<boolean> {
+		if (this.live) return true;
+		try {
+			await refresh();
+		} catch {
+			this.reportStatus(undefined);
+		}
+		return this.live && stillHeld();
 	}
 
 	/** A status result from the poll or a refresh; undefined when the read failed. */
@@ -89,6 +118,7 @@ export class MeetingActivity {
 		}
 		this.firstNoMeetingAt = undefined;
 		this.live = false;
+		if (this.watching) this.recheckAfter(RECHECK_MS);
 	}
 
 	/** A command's own result. It can show a meeting, but never counts towards inactive. */
@@ -132,7 +162,21 @@ export class MeetingActivity {
 	private goLive(): void {
 		this.firstNoMeetingAt = undefined;
 		this.cancelPending();
+		this.stopRechecks();
 		this.live = true;
+	}
+
+	/** Each recheck schedules the next before reading, so a busy or failed read cannot end the chain. */
+	private recheckAfter(ms: number): void {
+		this.cancelRecheck = this.clock.schedule(() => {
+			this.recheckAfter(RECHECK_MS);
+			this.confirm();
+		}, ms);
+	}
+
+	private stopRechecks(): void {
+		this.cancelRecheck?.();
+		this.cancelRecheck = undefined;
 	}
 
 	private cancelPending(): void {

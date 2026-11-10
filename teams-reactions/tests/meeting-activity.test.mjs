@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { COMMAND_HOLD_MS, CONFIRM_DELAY_MS, MeetingActivity, inactiveKeyImage, showsNoMeeting } from "../src/meeting-activity.ts";
+import { COMMAND_HOLD_MS, CONFIRM_DELAY_MS, MeetingActivity, RECHECK_MS, inactiveKeyImage, showsNoMeeting } from "../src/meeting-activity.ts";
 
 const NO_MEETING = { meetingActive: false, microphone: "unavailable", camera: "unavailable", backgroundBlur: "unavailable", hand: "unavailable" };
 const MEETING = { meetingActive: true, microphone: "muted", camera: "off", backgroundBlur: "unknown", hand: "lowered" };
@@ -88,7 +88,7 @@ test("two no-meeting results far enough apart make keys inactive", () => {
 	activity.reportStatus(NO_MEETING);
 	clock.advance(CONFIRM_DELAY_MS);
 	assert.equal(activity.active, false);
-	assert.deepEqual(clock.pending, []);
+	assert.deepEqual(clock.pending, [RECHECK_MS], "only the recheck is left");
 });
 
 test("a second no-meeting result too soon waits for the rest of the delay", () => {
@@ -147,7 +147,7 @@ test("further no-meeting results while inactive schedule nothing", () => {
 	activity.reportStatus(NO_MEETING);
 	activity.reportCommandResult(NO_MEETING);
 	assert.equal(activity.active, false);
-	assert.deepEqual(clock.pending, []);
+	assert.deepEqual(clock.pending, [RECHECK_MS], "only the recheck is pending");
 	assert.equal(confirmations.length, 1);
 });
 
@@ -285,4 +285,109 @@ test("a later evidence replaces a pending confirmation instead of adding one", (
 	clock.advance(500);
 	activity.reportStatus(NO_MEETING);
 	assert.equal(clock.pending.length, 1);
+});
+
+/** Makes keys inactive with two agreeing reads, leaving the reply queue empty. */
+function inactive() {
+	const context = setup();
+	context.replies.push(NO_MEETING);
+	context.activity.reportStatus(NO_MEETING);
+	context.clock.advance(CONFIRM_DELAY_MS);
+	assert.equal(context.activity.active, false);
+	return context;
+}
+
+test("regression: inactive keys recover from a recheck when Teams publishes nothing", () => {
+	const { clock, activity, replies, confirmations } = inactive();
+	const before = confirmations.length;
+	replies.push(NO_MEETING);
+	clock.advance(RECHECK_MS);
+	assert.equal(activity.active, false);
+	replies.push(MEETING);
+	clock.advance(RECHECK_MS);
+	assert.equal(activity.active, true);
+	assert.equal(confirmations.length, before + 2);
+	assert.deepEqual(clock.pending, [], "rechecks stop once keys are live");
+});
+
+test("rechecks continue after a read that returns nothing", () => {
+	const { clock, activity, confirmations } = inactive();
+	const before = confirmations.length;
+	clock.advance(RECHECK_MS * 3);
+	assert.equal(confirmations.length, before + 3, "a busy read does not end the chain");
+	assert.equal(activity.active, false);
+	assert.deepEqual(clock.pending, [RECHECK_MS]);
+});
+
+test("a failed recheck makes keys live", () => {
+	const { clock, activity, replies } = inactive();
+	replies.push(undefined);
+	clock.advance(RECHECK_MS);
+	assert.equal(activity.active, true);
+});
+
+test("rechecks stop while no key is visible and resume when one appears", () => {
+	const { clock, activity, confirmations } = inactive();
+	activity.setWatching(false);
+	assert.deepEqual(clock.pending, []);
+	const before = confirmations.length;
+	clock.advance(RECHECK_MS * 3);
+	assert.equal(confirmations.length, before);
+	activity.setWatching(true);
+	assert.deepEqual(clock.pending, [RECHECK_MS]);
+	activity.setWatching(true);
+	assert.deepEqual(clock.pending, [RECHECK_MS], "watching twice does not add a second chain");
+});
+
+test("going inactive while no key is visible starts no recheck", () => {
+	const { clock, activity, replies } = setup();
+	activity.setWatching(false);
+	replies.push(NO_MEETING);
+	activity.reportStatus(NO_MEETING);
+	clock.advance(CONFIRM_DELAY_MS);
+	assert.equal(activity.active, false);
+	assert.deepEqual(clock.pending, []);
+});
+
+test("watching while live schedules nothing", () => {
+	const { clock, activity } = setup();
+	activity.setWatching(true);
+	assert.deepEqual(clock.pending, []);
+});
+
+test("a live press runs without reading status", async () => {
+	const { activity } = setup();
+	let reads = 0;
+	assert.equal(await activity.admitPress(async () => { reads += 1; }), true);
+	assert.equal(reads, 0);
+});
+
+test("regression: an inactive press reads status and runs when it shows a meeting", async () => {
+	const { activity } = inactive();
+	let reads = 0;
+	const allowed = await activity.admitPress(async () => { reads += 1; activity.reportStatus(MEETING); });
+	assert.equal(reads, 1);
+	assert.equal(allowed, true);
+	assert.equal(activity.active, true);
+});
+
+test("an inactive press is ignored when the fresh read still shows no meeting", async () => {
+	const { activity } = inactive();
+	assert.equal(await activity.admitPress(async () => activity.reportStatus(NO_MEETING)), false);
+	assert.equal(activity.active, false);
+});
+
+test("an inactive press whose read fails runs, because a failed read makes keys live", async () => {
+	const { activity } = inactive();
+	assert.equal(await activity.admitPress(async () => { throw new Error("helper"); }), true);
+	assert.equal(activity.active, true);
+});
+
+test("a hold key released during the read does not run", async () => {
+	const { activity } = inactive();
+	let held = true;
+	const allowed = await activity.admitPress(async () => { held = false; activity.reportStatus(MEETING); }, () => held);
+	assert.equal(allowed, false);
+	assert.equal(activity.active, true, "the meeting still makes keys live");
+	assert.equal(await activity.admitPress(async () => undefined, () => false), true, "a live hold key is never second-guessed");
 });
