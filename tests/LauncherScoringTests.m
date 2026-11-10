@@ -237,6 +237,8 @@ static void TestScreenShare(int *failures) {
     Expect(RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"an actionless Share content dialogue that is still open must not force rediscovery", failures);
     bareRefreshed.title = @"Something else";
     Expect(!RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"an actionless node that stopped being the Share dialogue must force rediscovery", failures);
+    bareRefreshed.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(!RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"a pressable node that stopped being the Share dialogue must force rediscovery", failures);
     AXNode *refreshed = ShareButton(@"Share", 16, YES, NO);
     Expect(RefreshedControlsMatch(@[toolbarStop], @[refreshed]), @"the toolbar button changing from Stop sharing to Share must stay a Share control", failures);
 }

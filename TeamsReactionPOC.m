@@ -930,7 +930,7 @@ static BOOL RefreshedControlsMatch(NSArray<AXNode *> *previous, NSArray<AXNode *
             || (HandScore(old) > 0 && HandScore(current) <= 0)
             || (LauncherScore(old) > 0 && LauncherScore(current) <= 0)
             || (LeaveScore(old) > 0 && LeaveScore(current) <= 0)
-            || (ShareScore(old) > 0 && ShareScore(current) <= 0)) return NO;
+            || (ShareScore(old) > 0 && ShareScore(current) <= 0) || (IsShareDialogue(old) && !IsShareDialogue(current))) return NO;
     }
     return YES;
 }
