@@ -113,6 +113,7 @@ The **Reaction** key sends whichever reaction its Property Inspector selects. It
 | Case | Expected result | Result |
 |---|---|---|
 | Add a new Reaction key | The Property Inspector shows Like selected and the key shows the Like image | Not run |
+| Open the Property Inspector | Each option shows its reaction icon beside the reaction name | Not run |
 | Select each of Love, Applause, Laugh, Surprised | The key image changes to that reaction without reopening the profile | Not run |
 | Tap the key after each selection | Teams sends a reaction attempt for the selected reaction only | Not run |
 | Hold the key with Love selected | A reaction wave of Love runs and stops on release, as for the fixed Love key | Not run |

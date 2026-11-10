@@ -36,6 +36,9 @@
 				gap: 6px;
 				cursor: pointer;
 			}
+			label img {
+				flex: none;
+			}
 			p {
 				margin: 12px 0 0 102px;
 				color: #969696;
@@ -47,11 +50,11 @@
 			<fieldset>
 				<legend>Emoji Reactions</legend>
 				<div class="options">
-					<label><input type="radio" name="reaction" value="like" checked /> Like</label>
-					<label><input type="radio" name="reaction" value="love" /> Love</label>
-					<label><input type="radio" name="reaction" value="applause" /> Applause</label>
-					<label><input type="radio" name="reaction" value="laugh" /> Laugh</label>
-					<label><input type="radio" name="reaction" value="surprise" /> Surprised</label>
+					<label><input type="radio" name="reaction" value="like" checked /><img src="../imgs/actions/like/key.png" width="24" height="24" alt="" /> Like</label>
+					<label><input type="radio" name="reaction" value="love" /><img src="../imgs/actions/love/key.png" width="24" height="24" alt="" /> Love</label>
+					<label><input type="radio" name="reaction" value="applause" /><img src="../imgs/actions/applause/key.png" width="24" height="24" alt="" /> Applause</label>
+					<label><input type="radio" name="reaction" value="laugh" /><img src="../imgs/actions/laugh/key.png" width="24" height="24" alt="" /> Laugh</label>
+					<label><input type="radio" name="reaction" value="surprise" /><img src="../imgs/actions/surprise/key.png" width="24" height="24" alt="" /> Surprised</label>
 				</div>
 			</fieldset>
 			<p>Tap to send once. Hold for a reaction wave. The key shows the chosen reaction.</p>
