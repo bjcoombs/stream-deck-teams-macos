@@ -30,6 +30,14 @@ test("the fixed reaction actions stay installed but hidden from the action list"
 	}
 });
 
+test("Share Screen shows not sharing as state 0 and sharing as state 1", () => {
+	// stateIndex in state-synchronizer.ts maps screenShare off to 0 and on to 1.
+	const share = actionFor("share");
+	assert.equal(share?.Name, "Share Screen");
+	assert.notEqual(share.VisibleInActionsList, false);
+	assert.deepEqual(share.States.map(state => state.Image), ["imgs/actions/share/off", "imgs/actions/share/on"]);
+});
+
 test("every key image has a dimmed twin for when no meeting is active", async () => {
 	const pluginDir = new URL("../com.laurens-bolle.teams-reactions.sdPlugin/", import.meta.url);
 	const images = manifest.Actions.flatMap(a => a.States.map(state => state.Image));

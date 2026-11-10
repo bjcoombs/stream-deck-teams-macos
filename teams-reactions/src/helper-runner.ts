@@ -5,15 +5,11 @@ import { fileURLToPath } from "node:url";
 export const REACTIONS = ["like", "love", "applause", "laugh", "surprise"] as const;
 export const TEAMS_COMMANDS = [
 	"status",
-	"mute",
-	"unmute",
-	"camera-on",
-	"camera-off",
-	"blur-on",
-	"blur-off",
-	"blur-toggle",
-	"hand-raise",
-	"hand-lower",
+	"mute", "unmute",
+	"camera-on", "camera-off",
+	"blur-on", "blur-off", "blur-toggle",
+	"hand-raise", "hand-lower",
+	"share-toggle",
 	"leave",
 ] as const;
 
@@ -24,6 +20,7 @@ export type MicrophoneState = "muted" | "unmuted" | AvailabilityState;
 export type CameraState = "on" | "off" | AvailabilityState;
 export type BlurState = "on" | "off" | AvailabilityState;
 export type HandState = "raised" | "lowered" | AvailabilityState;
+export type ScreenShareState = "on" | "off" | AvailabilityState;
 
 export type TeamsState = {
 	meetingActive: boolean;
@@ -31,6 +28,7 @@ export type TeamsState = {
 	camera: CameraState;
 	backgroundBlur: BlurState;
 	hand: HandState;
+	screenShare: ScreenShareState;
 };
 
 /**
@@ -162,6 +160,7 @@ export function parseTeamsResult(stdout: string): TeamsCommandResult {
 		|| !isState(value.camera, ["on", "off"])
 		|| !isState(value.backgroundBlur, ["on", "off"])
 		|| !isState(value.hand, ["raised", "lowered"])
+		|| !isState(value.screenShare, ["on", "off"])
 		|| typeof value.command !== "string"
 		|| !isTeamsCommand(value.command)
 		|| typeof value.changed !== "boolean"

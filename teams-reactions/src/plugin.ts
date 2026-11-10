@@ -18,6 +18,7 @@ import {
 } from "./actions/call-controls";
 import { stateSynchronizer } from "./actions/state-synchronizer";
 import { BackgroundBlurAction } from "./actions/background-blur";
+import { ShareScreenAction } from "./actions/share-screen";
 import { PushToTalkAction, releaseAllPushToTalk } from "./actions/push-to-talk";
 import { persistentControls } from "./teams-services";
 
@@ -34,6 +35,7 @@ streamDeck.actions.registerAction(new CameraAction());
 streamDeck.actions.registerAction(new BackgroundBlurAction());
 streamDeck.actions.registerAction(new PushToTalkAction());
 streamDeck.actions.registerAction(new HandAction());
+streamDeck.actions.registerAction(new ShareScreenAction());
 streamDeck.actions.registerAction(new LeaveAction());
 
 streamDeck.devices.onDeviceDidDisconnect(ev => {

@@ -176,6 +176,61 @@ static void TestShareDialogue(int *failures) {
     ExpectState(@[], @"meetingActive", @NO, @"no elements must not read as a meeting", failures);
 }
 
+static AXNode *ShareButton(NSString *title, NSInteger depth, BOOL inToolbar, BOOL focused) {
+    AXNode *node = Button(title, @"", depth);
+    node.inToolbar = inToolbar;
+    node.focusedWindow = focused;
+    return node;
+}
+
+// Live Teams scan (10 Nov 2026): while sharing, the meeting toolbar button reads Stop
+// sharing (title and description) and a floating Sharing control bar window has another.
+static void TestScreenShare(int *failures) {
+    AXNode *mic = Button(@"Mute mic", @"microphone-button", 10);
+    AXNode *toolbarStop = ShareButton(@"Stop sharing", 16, YES, NO);
+    toolbarStop.nodeDescription = @"Stop sharing";
+    AXNode *barStop = ShareButton(@"Stop sharing", 15, NO, YES);
+    barStop.windowTitle = @"Sharing control bar | Microsoft Teams";
+    BOOL ambiguous = YES;
+    AXNode *chosen = BestUniqueNode(@[barStop, toolbarStop], ^NSInteger(AXNode *node) { return ShareScore(node); }, &ambiguous);
+    Expect(chosen == toolbarStop && !ambiguous, @"the toolbar Stop sharing must win over the focused control bar's", failures);
+    ambiguous = YES;
+    chosen = BestUniqueNode(@[ShareButton(@"Stop sharing", 15, NO, NO), toolbarStop], ^NSInteger(AXNode *node) { return ShareScore(node); }, &ambiguous);
+    Expect(chosen == toolbarStop && !ambiguous, @"the toolbar Stop sharing must win when neither window is focused", failures);
+    ExpectState(@[mic, barStop, toolbarStop], @"screenShare", @"on", @"Stop sharing in the toolbar must report sharing on", failures);
+    ExpectState(@[barStop], @"meetingActive", @YES, @"a control bar Stop sharing alone must mark a meeting active", failures);
+    ExpectState(@[barStop], @"screenShare", @"on", @"a control bar Stop sharing alone must report sharing on", failures);
+    ExpectState(@[mic, ShareButton(@"Share", 16, YES, YES)], @"screenShare", @"off", @"Share in the toolbar must report sharing off", failures);
+    ExpectState(@[ShareButton(@"Share", 16, YES, YES)], @"meetingActive", @NO, @"a toolbar Share alone is not meeting evidence", failures);
+    ExpectState(@[mic, toolbarStop, ShareButton(@"Stop sharing", 16, YES, NO)], @"screenShare", @"unknown", @"two toolbar Stop sharing controls must report unknown", failures);
+    ExpectState(@[mic], @"screenShare", @"unavailable", @"a meeting without a Share control must report unavailable", failures);
+    ExpectState(@[ShareButton(@"Stop sharing", 15, NO, NO)], @"screenShare", @"on", @"Stop sharing is recognised outside a toolbar", failures);
+
+    AXNode *menuShare = ShareButton(@"Share", 4, NO, NO);
+    menuShare.role = (__bridge NSString *)kAXMenuItemRole;
+    Expect(ShareScore(menuShare) == NSIntegerMin, @"the menu bar Share item must never be pressed", failures);
+    menuShare.inToolbar = YES;
+    Expect(ShareScore(menuShare) == NSIntegerMin, @"a Share menu item must be rejected even inside a toolbar", failures);
+    ExpectState(@[mic, menuShare], @"screenShare", @"unavailable", @"a Share menu item is not the meeting Share control", failures);
+    ExpectState(@[menuShare], @"meetingActive", @NO, @"a Share menu item is not meeting evidence", failures);
+    Expect(ShareScore(ShareButton(@"Share", 12, NO, YES)) == NSIntegerMin, @"Share outside a toolbar must never be pressed", failures);
+    Expect(ShareScore(ShareButton(@"Share Microsoft Whiteboard Start Whiteboard", 10, YES, YES)) == NSIntegerMin, @"Share Microsoft Whiteboard is not the Share control", failures);
+    AXNode *showMenuOnly = ShareButton(@"Share", 16, YES, YES);
+    showMenuOnly.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(ShareScore(showMenuOnly) == NSIntegerMin, @"the Share control needs an actual press action", failures);
+
+    AXNode *dialogue = Button(@"Share content", @"", 8);
+    dialogue.role = (__bridge NSString *)kAXGroupRole;
+    dialogue.actions = @[(__bridge NSString *)kAXShowMenuAction];
+    Expect(ShareScore(dialogue) == NSIntegerMin, @"the Share content dialogue must not be pressed as the Share control", failures);
+    ExpectState(@[dialogue], @"screenShare", @"off", @"an open share picker must report sharing off", failures);
+    ExpectState(@[], @"screenShare", @"unavailable", @"no meeting must report sharing unavailable", failures);
+    NSArray *controls = StateControlNodes(@{@"applicationCount": @1, @"elements": @[mic, toolbarStop, barStop, dialogue, menuShare]});
+    Expect(controls.count == 4 && ![controls containsObject:menuShare], @"persistent refresh must keep the Share controls and the share picker", failures);
+    AXNode *refreshed = ShareButton(@"Share", 16, YES, NO);
+    Expect(RefreshedControlsMatch(@[toolbarStop], @[refreshed]), @"the toolbar button changing from Stop sharing to Share must stay a Share control", failures);
+}
+
 int main(void) {
     @autoreleasepool {
         int failures = 0;
@@ -186,6 +241,7 @@ int main(void) {
         TestAXErrorDescription(&failures);
         TestLiveEffectsPanel(&failures);
         TestShareDialogue(&failures);
+        TestScreenShare(&failures);
 
         __block NSInteger reactionPresses = 0;
         __block NSInteger reacquisitions = 0;
