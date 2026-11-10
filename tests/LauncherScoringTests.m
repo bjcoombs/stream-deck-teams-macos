@@ -227,6 +227,16 @@ static void TestScreenShare(int *failures) {
     ExpectState(@[], @"screenShare", @"unavailable", @"no meeting must report sharing unavailable", failures);
     NSArray *controls = StateControlNodes(@{@"applicationCount": @1, @"elements": @[mic, toolbarStop, barStop, dialogue, menuShare]});
     Expect(controls.count == 4 && ![controls containsObject:menuShare], @"persistent refresh must keep the Share controls and the share picker", failures);
+    AXNode *bareDialogue = Button(@"Share content", @"", 8);
+    bareDialogue.role = (__bridge NSString *)kAXGroupRole;
+    bareDialogue.actions = @[];
+    Expect([StateControlNodes(@{@"applicationCount": @1, @"elements": @[bareDialogue]}) containsObject:bareDialogue], @"persistent refresh must keep a Share content dialogue with no actions", failures);
+    AXNode *bareRefreshed = Button(@"Share content", @"", 8);
+    bareRefreshed.role = bareDialogue.role;
+    bareRefreshed.actions = @[];
+    Expect(RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"an actionless Share content dialogue that is still open must not force rediscovery", failures);
+    bareRefreshed.title = @"Something else";
+    Expect(!RefreshedControlsMatch(@[bareDialogue], @[bareRefreshed]), @"an actionless node that stopped being the Share dialogue must force rediscovery", failures);
     AXNode *refreshed = ShareButton(@"Share", 16, YES, NO);
     Expect(RefreshedControlsMatch(@[toolbarStop], @[refreshed]), @"the toolbar button changing from Stop sharing to Share must stay a Share control", failures);
 }

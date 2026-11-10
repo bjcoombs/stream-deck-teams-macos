@@ -712,7 +712,7 @@ static NSDictionary *StateSnapshot(NSDictionary *scan) {
 static NSArray<AXNode *> *StateControlNodes(NSDictionary *scan) {
     NSMutableArray *controls = [NSMutableArray array];
     for (AXNode *node in scan[@"elements"]) {
-        if (!node.canPress) continue;
+        if (!node.canPress && !IsShareDialogue(node)) continue;
         if (MicrophoneScore(node) > 0 || CameraScore(node) > 0 || HandScore(node) > 0
             || LauncherScore(node) > 0 || LeaveScore(node) > 0 || EffectsLauncherScore(node) > 0
             || BlurOptionScore(node) > 0 || NoEffectOptionScore(node) > 0 || ShareScore(node) > 0 || IsShareDialogue(node)) [controls addObject:node];
@@ -924,7 +924,7 @@ static BOOL RefreshedControlsMatch(NSArray<AXNode *> *previous, NSArray<AXNode *
     for (NSUInteger index = 0; index < previous.count; index += 1) {
         AXNode *old = previous[index], *current = fresh[index];
         if (![old.role isEqualToString:current.role] || ![old.identifier isEqualToString:current.identifier]
-            || old.pid != current.pid || !current.canPress) return NO;
+            || old.pid != current.pid || (!current.canPress && !(IsShareDialogue(old) && IsShareDialogue(current)))) return NO;
         if ((MicrophoneScore(old) > 0 && MicrophoneScore(current) <= 0)
             || (CameraScore(old) > 0 && CameraScore(current) <= 0)
             || (HandScore(old) > 0 && HandScore(current) <= 0)
