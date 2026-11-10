@@ -115,7 +115,7 @@ The **Reaction** key sends whichever reaction its Property Inspector selects. It
 
 ## Inactive keys without a meeting
 
-Since version `0.2.0.20` the plugin dims every key and ignores presses while status finds no meeting. Version `0.2.0.21` rechecks status every two seconds while inactive, reads status before ignoring a press, and treats the Share content dialogue as a meeting. Use a profile with at least one key of every action, including a hidden fixed reaction key from before `0.2.0.19`. Version `0.2.0.22` dims inactive keys and keeps their colours instead of turning them grey.
+Since version `0.2.0.20` the plugin marks every key inactive and ignores presses while status finds no meeting. Version `0.2.0.21` rechecks status every two seconds while inactive, reads status before ignoring a press, and treats the Share content dialogue as a meeting. Version `0.2.0.22` dims inactive keys and keeps their colours; earlier versions turned them grey. Use a profile with at least one key of every action, including a hidden fixed reaction key from before `0.2.0.19`.
 
 | Case | Expected result | Result |
 |---|---|---|

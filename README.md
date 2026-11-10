@@ -68,7 +68,8 @@ ambiguous, busy, or failed.
   releasing early cancels with a yellow alert. Leave is refused in Multi Actions.
 
 While no Teams meeting is active, every key from this plugin shows a dimmed
-image that keeps its colours and a press does nothing: no Teams command, alert, or check mark. Keys go
+image that keeps its colours, and a press does nothing: no Teams command,
+alert, or check mark. Keys go
 inactive only after two status reads at least two seconds apart both find no
 meeting and no open video effects panel, and never within three seconds of a
 Teams command. They come back on the first read that finds a meeting, or on any
